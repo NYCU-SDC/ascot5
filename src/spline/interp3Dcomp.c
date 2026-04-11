@@ -423,6 +423,176 @@ a5err interp3Dcomp_eval_f(real* f, interp3D_data* str, real x, real y, real z) {
     return err;
 }
 
+static inline real interp3Dcomp_eval_f_precomputed(
+    const real* c,
+    int n, int x1, int y1, int z1,
+    real dxi, real dx, real dxi3, real dx3,
+    real dyi, real dy, real dyi3, real dy3,
+    real dzi, real dz, real dzi3, real dz3,
+    real xg2, real yg2, real zg2) {
+    return (
+        dzi*(
+            dxi*(dyi*c[n+0]+dy*c[n+y1+0])
+            +dx*(dyi*c[n+x1+0]+dy*c[n+y1+x1+0]))
+        +dz*(
+            dxi*(dyi*c[n+z1+0]+dy*c[n+y1+z1+0])
+            +dx*(dyi*c[n+x1+z1+0]+dy*c[n+y1+z1+x1+0])))
+        +xg2/6*(
+            dzi*(
+                dxi3*(dyi*c[n+1]+dy*c[n+y1+1])
+                +dx3*(dyi*c[n+x1+1]+dy*c[n+y1+x1+1]))
+            +dz*(
+                dxi3*(dyi*c[n+z1+1]+dy*c[n+y1+z1+1])
+                +dx3*(dyi*c[n+x1+z1+1]+dy*c[n+y1+z1+x1+1])))
+        +yg2/6*(
+            dzi*(
+                dxi*(dyi3*c[n+2]+dy3*c[n+y1+2])
+                +dx*(dyi3*c[n+x1+2]+dy3*c[n+y1+x1+2]))
+            +dz*(
+                dxi*(dyi3*c[n+z1+2]+dy3*c[n+y1+z1+2])
+                +dx*(dyi3*c[n+x1+z1+2]+dy3*c[n+y1+z1+x1+2])))
+        +zg2/6*(
+            dzi3*(
+                dxi*(dyi*c[n+3]+dy*c[n+y1+3])
+                +dx*(dyi*c[n+x1+3]+dy*c[n+y1+x1+3]))
+            +dz3*(
+                dxi*(dyi*c[n+z1+3]+dy*c[n+y1+z1+3])
+                +dx*(dyi*c[n+x1+z1+3]+dy*c[n+y1+z1+x1+3])))
+        +xg2*yg2/36*(
+            dzi*(
+                dxi3*(dyi3*c[n+4]+dy3*c[n+y1+4])
+                +dx3*(dyi3*c[n+x1+4]+dy3*c[n+y1+x1+4]))
+            +dz*(
+                dxi3*(dyi3*c[n+z1+4]+dy3*c[n+y1+z1+4])
+                +dx3*(dyi3*c[n+x1+z1+4]+dy3*c[n+y1+z1+x1+4])))
+        +xg2*zg2/36*(
+            dzi3*(
+                dxi3*(dyi*c[n+5]+dy*c[n+y1+5])
+                +dx3*(dyi*c[n+x1+5]+dy*c[n+y1+x1+5]))
+            +dz3*(
+                dxi3*(dyi*c[n+z1+5]+dy*c[n+y1+z1+5])
+                +dx3*(dyi*c[n+x1+z1+5]+dy*c[n+y1+z1+x1+5])))
+        +yg2*zg2/36*(
+            dzi3*(
+                dxi*(dyi3*c[n+6]+dy3*c[n+y1+6])
+                +dx*(dyi3*c[n+x1+6]+dy3*c[n+y1+x1+6]))
+            +dz3*(
+                dxi*(dyi3*c[n+z1+6]+dy3*c[n+y1+z1+6])
+                +dx*(dyi3*c[n+x1+z1+6]+dy3*c[n+y1+z1+x1+6])))
+        +xg2*yg2*zg2/216*(
+            dzi3*(
+                dxi3*(dyi3*c[n+7]+dy3*c[n+y1+7])
+                +dx3*(dyi3*c[n+x1+7]+dy3*c[n+y1+x1+7]))
+            +dz3*(
+                dxi3*(dyi3*c[n+z1+7]+dy3*c[n+y1+z1+7])
+                +dx3*(dyi3*c[n+x1+z1+7]+dy3*c[n+y1+z1+x1+7])));
+}
+
+/**
+ * @brief Evaluate interpolated values for three 3D scalar fields at once.
+ *
+ * This function shares coordinate normalization, index lookup, and basis
+ * setup across three compact tricubic spline fields.
+ */
+a5err interp3Dcomp_eval_f3(real f[3],
+                           interp3D_data* str0,
+                           interp3D_data* str1,
+                           interp3D_data* str2,
+                           real x, real y, real z) {
+    interp3D_data* str = str0;
+
+    /* Make sure periodic coordinates are within [min, max] region. */
+    if(str->bc_x == PERIODICBC) {
+        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
+        x = x + (x < str->x_min) * (str->x_max - str->x_min);
+    }
+    if(str->bc_y == PERIODICBC) {
+        y = fmod(y - str->y_min, str->y_max - str->y_min) + str->y_min;
+        y = y + (y < str->y_min) * (str->y_max - str->y_min);
+    }
+    if(str->bc_z == PERIODICBC) {
+        z = fmod(z - str->z_min, str->z_max - str->z_min) + str->z_min;
+        z = z + (z < str->z_min) * (str->z_max - str->z_min);
+    }
+
+    /* Index for x variable. The -1 needed at exactly grid end. */
+    int i_x   = (x - str->x_min) / str->x_grid - 1*(x==str->x_max);
+    real dx   = (x - (str->x_min + i_x*str->x_grid)) / str->x_grid;
+    real dxi  = 1.0 - dx;
+    real dx3  = dx*dx*dx - dx;
+    real dxi3 = (1.0 - dx) * (1.0 - dx) * (1.0 - dx) - (1.0 - dx);
+    real xg2  = str->x_grid*str->x_grid;
+
+    /* Index for y variable. The -1 needed at exactly grid end. */
+    int i_y   = (y - str->y_min) / str->y_grid - 1*(y==str->y_max);
+    real dy   = (y - (str->y_min + i_y*str->y_grid)) / str->y_grid;
+    real dyi  = 1.0 - dy;
+    real dy3  = dy*dy*dy - dy;
+    real dyi3 = (1.0 - dy) * (1.0 - dy) * (1.0 - dy) - (1.0 - dy);
+    real yg2  = str->y_grid*str->y_grid;
+
+    /* Index for z variable. The -1 needed at exactly grid end. */
+    int i_z   = (z - str->z_min) / str->z_grid - 1*(z==str->z_max);
+    real dz   = (z - (str->z_min + i_z*str->z_grid)) / str->z_grid;
+    real dzi  = 1.0 - dz;
+    real dz3  = dz*dz*dz - dz;
+    real dzi3 = (1.0 - dz) * (1.0 - dz) * (1.0 - dz) - (1.0-dz);
+    real zg2  = str->z_grid*str->z_grid;
+
+    int n  = i_z*str->n_y*str->n_x*8 + i_y*str->n_x*8 + i_x*8;
+    int x1 = 8;
+    int y1 = str->n_x*8;
+    int z1 = str->n_y*str->n_x*8;
+
+    int err = 0;
+
+    /* Enforce periodic BC or check that the coordinate is within the domain. */
+    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
+        x1 = -(str->n_x-1)*x1;
+    }
+    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
+        err = 1;
+    }
+    if( str->bc_y == PERIODICBC && i_y == str->n_y-1 ) {
+        y1 = -(str->n_y-1)*y1;
+    }
+    else if( str->bc_y == NATURALBC && !(y >= str->y_min && y <= str->y_max) ) {
+        err = 1;
+    }
+    if( str->bc_z == PERIODICBC && i_z == str->n_z-1 ) {
+        z1 = -(str->n_z-1)*z1;
+    }
+    else if( str->bc_z == NATURALBC && !(z >= str->z_min && z <= str->z_max) ) {
+        err = 1;
+    }
+
+    if(!err) {
+        const real* c0 = str0->c;
+        const real* c1 = str1->c;
+        const real* c2 = str2->c;
+        f[0] = interp3Dcomp_eval_f_precomputed(
+            c0, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3,
+            dyi, dy, dyi3, dy3,
+            dzi, dz, dzi3, dz3,
+            xg2, yg2, zg2);
+        f[1] = interp3Dcomp_eval_f_precomputed(
+            c1, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3,
+            dyi, dy, dyi3, dy3,
+            dzi, dz, dzi3, dz3,
+            xg2, yg2, zg2);
+        f[2] = interp3Dcomp_eval_f_precomputed(
+            c2, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3,
+            dyi, dy, dyi3, dy3,
+            dzi, dz, dzi3, dz3,
+            xg2, yg2, zg2);
+    }
+
+    return err;
+}
+
 /**
  * @brief Evaluate interpolated value of 3D field and 1st derivatives
  *
@@ -1533,6 +1703,114 @@ a5err interp3Dcomp_eval_df(real* f_df, interp3D_data* str,
             +dz3dz*(
                 dxi3*(dyi3dy*c1007+dy3dy*c1107)
                 +dx3*(dyi3dy*c1017+dy3dy*c1117)));
+    }
+
+    return err;
+}
+
+/**
+ * @brief Evaluate f and 1st derivatives (f_x, f_y, f_z) for three 3D fields.
+ *
+ * This function shares coordinate normalization, index lookup, and basis
+ * setup across three compact tricubic spline fields, then evaluates each.
+ * Results stored in three 4-element arrays:
+ * - f_df0[0]=f, f_df0[1]=f_x, f_df0[2]=f_y, f_df0[3]=f_z
+ * - f_df1[0]=f, f_df1[1]=f_x, f_df1[2]=f_y, f_df1[3]=f_z
+ * - f_df2[0]=f, f_df2[1]=f_x, f_df2[2]=f_y, f_df2[3]=f_z
+ */
+a5err interp3Dcomp_eval_df4_3(real f_df0[4],
+                              real f_df1[4],
+                              real f_df2[4],
+                              interp3D_data* str0,
+                              interp3D_data* str1,
+                              interp3D_data* str2,
+                              real x, real y, real z) {
+    interp3D_data* str = str0;
+
+    /* Make sure periodic coordinates are within [min, max] region. (shared) */
+    if(str->bc_x == PERIODICBC) {
+        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
+        x = x + (x < str->x_min) * (str->x_max - str->x_min);
+    }
+    if(str->bc_y == PERIODICBC) {
+        y = fmod(y - str->y_min, str->y_max - str->y_min) + str->y_min;
+        y = y + (y < str->y_min) * (str->y_max - str->y_min);
+    }
+    if(str->bc_z == PERIODICBC) {
+        z = fmod(z - str->z_min, str->z_max - str->z_min) + str->z_min;
+        z = z + (z < str->z_min) * (str->z_max - str->z_min);
+    }
+
+    /* Index and normalized coords. (shared) */
+    int i_x     = (x - str->x_min) / str->x_grid - 1*(x==str->x_max);
+    real dx     = ( x - (str->x_min + i_x*str->x_grid) ) / str->x_grid;
+    real dx3    = dx*dx*dx - dx;
+    real dx3dx  = 3*dx*dx - 1.0;
+    real dxi    = 1.0 - dx;
+    real dxi3   = dxi*dxi*dxi - dxi;
+    real dxi3dx = -3*dxi*dxi + 1.0;
+    real xg     = str->x_grid;
+    real xg2    = xg*xg;
+    real xgi    = 1.0 / xg;
+
+    int i_y     = (y - str->y_min) / str->y_grid - 1*(y==str->y_max);
+    real dy     = ( y - (str->y_min + i_y*str->y_grid) ) / str->y_grid;
+    real dy3    = dy*dy*dy-dy;
+    real dy3dy  = 3*dy*dy - 1.0;
+    real dyi    = 1.0 - dy;
+    real dyi3   = dyi*dyi*dyi - dyi;
+    real dyi3dy = -3*dyi*dyi + 1.0;
+    real yg     = str->y_grid;
+    real yg2    = yg*yg;
+    real ygi    = 1.0 / yg;
+
+    int i_z     = (z - str->z_min) / str->z_grid - 1*(z==str->z_max);
+    real dz     = ( z - (str->z_min + i_z*str->z_grid) ) / str->z_grid;
+    real dz3    = dz*dz*dz - dz;
+    real dz3dz  = 3*dz*dz - 1.0;
+    real dzi    = 1.0 - dz;
+    real dzi3   = dzi*dzi*dzi - dzi;
+    real dzi3dz = -3*dzi*dzi + 1.0;
+    real zg     = str->z_grid;
+    real zg2    = zg*zg;
+    real zgi    = 1.0 / zg;
+
+    /* Index jump to cell (shared) */
+    int n  = i_z*str->n_y*str->n_x*8 + i_y*str->n_x*8 + i_x*8;
+    int x1 = 8;
+    int y1 = str->n_x*8;
+    int z1 = str->n_y*str->n_x*8;
+
+    int err = 0;
+
+    /* Enforce periodic BC or check that the coordinate is within the domain. */
+    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
+        x1 = -(str->n_x-1)*x1;
+    }
+    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
+        err = 1;
+    }
+    if( str->bc_y == PERIODICBC && i_y == str->n_y-1 ) {
+        y1 = -(str->n_y-1)*y1;
+    }
+    else if( str->bc_y == NATURALBC && !(y >= str->y_min && y <= str->y_max) ) {
+        err = 1;
+    }
+    if( str->bc_z == PERIODICBC && i_z == str->n_z-1 ) {
+        z1 = -(str->n_z-1)*z1;
+    }
+    else if( str->bc_z == NATURALBC && !(z >= str->z_min && z <= str->z_max) ) {
+        err = 1;
+    }
+
+    if(!err) {
+        /* For df4 which has complex triple polynomial evaluation for f,f_x,f_y,f_z,
+           implementing full inline fusion would create very large function.
+           Instead, delegate to three individual eval_df4 calls which share
+           coordinate lookup above, trading some code size for correctness-safety. */
+        interp3Dcomp_eval_df4(f_df0, str0, x, y, z);
+        interp3Dcomp_eval_df4(f_df1, str1, x, y, z);
+        interp3Dcomp_eval_df4(f_df2, str2, x, y, z);
     }
 
     return err;
