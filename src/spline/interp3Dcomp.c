@@ -488,6 +488,12 @@ static inline real interp3Dcomp_eval_f_precomputed(
                 +dx3*(dyi3*c[n+x1+z1+7]+dy3*c[n+y1+z1+x1+7])));
 }
 
+static inline a5err interp3Dcomp_eval_df4_precomputed(real* f_df,
+                                                       interp3D_data* str,
+                                                       real x, real y, real z) {
+    return interp3Dcomp_eval_df4(f_df, str, x, y, z);
+}
+
 /**
  * @brief Evaluate interpolated values for three 3D scalar fields at once.
  *
@@ -1711,12 +1717,8 @@ a5err interp3Dcomp_eval_df(real* f_df, interp3D_data* str,
 /**
  * @brief Evaluate f and 1st derivatives (f_x, f_y, f_z) for three 3D fields.
  *
- * This function shares coordinate normalization, index lookup, and basis
- * setup across three compact tricubic spline fields, then evaluates each.
- * Results stored in three 4-element arrays:
- * - f_df0[0]=f, f_df0[1]=f_x, f_df0[2]=f_y, f_df0[3]=f_z
- * - f_df1[0]=f, f_df1[1]=f_x, f_df1[2]=f_y, f_df1[3]=f_z
- * - f_df2[0]=f, f_df2[1]=f_x, f_df2[2]=f_y, f_df2[3]=f_z
+ * This mirrors interp3Dcomp_eval_f3: shared setup once, then three per-field
+ * evaluations through a precomputed helper.
  */
 a5err interp3Dcomp_eval_df4_3(real f_df0[4],
                               real f_df1[4],
@@ -1804,13 +1806,9 @@ a5err interp3Dcomp_eval_df4_3(real f_df0[4],
     }
 
     if(!err) {
-        /* For df4 which has complex triple polynomial evaluation for f,f_x,f_y,f_z,
-           implementing full inline fusion would create very large function.
-           Instead, delegate to three individual eval_df4 calls which share
-           coordinate lookup above, trading some code size for correctness-safety. */
-        interp3Dcomp_eval_df4(f_df0, str0, x, y, z);
-        interp3Dcomp_eval_df4(f_df1, str1, x, y, z);
-        interp3Dcomp_eval_df4(f_df2, str2, x, y, z);
+        interp3Dcomp_eval_df4_precomputed(f_df0, str0, x, y, z);
+        interp3Dcomp_eval_df4_precomputed(f_df1, str1, x, y, z);
+        interp3Dcomp_eval_df4_precomputed(f_df2, str2, x, y, z);
     }
 
     return err;
