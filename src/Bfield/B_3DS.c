@@ -365,25 +365,10 @@ a5err B_3DS_eval_B_dB(real B_dB[12], real r, real phi, real z,
                       B_3DS_data* Bdata) {
     a5err err = 0;
     int interperr = 0; /* If error happened during interpolation */
-    real B_dB_temp[10];
 
-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_r, r, phi, z);
-    B_dB[0] = B_dB_temp[0];
-    B_dB[1] = B_dB_temp[1];
-    B_dB[2] = B_dB_temp[2];
-    B_dB[3] = B_dB_temp[3];
-
-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_phi, r, phi, z);
-    B_dB[4] = B_dB_temp[0];
-    B_dB[5] = B_dB_temp[1];
-    B_dB[6] = B_dB_temp[2];
-    B_dB[7] = B_dB_temp[3];
-
-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_z, r, phi, z);
-    B_dB[8] = B_dB_temp[0];
-    B_dB[9] = B_dB_temp[1];
-    B_dB[10] = B_dB_temp[2];
-    B_dB[11] = B_dB_temp[3];
+    interperr += interp3Dcomp_eval_df4(&B_dB[0], &Bdata->B_r, r, phi, z);
+    interperr += interp3Dcomp_eval_df4(&B_dB[4], &Bdata->B_phi, r, phi, z);
+    interperr += interp3Dcomp_eval_df4(&B_dB[8], &Bdata->B_z, r, phi, z);
 
     /* Test for B field interpolation error */
     if(interperr) {
@@ -392,14 +377,16 @@ a5err B_3DS_eval_B_dB(real B_dB[12], real r, real phi, real z,
 
     if(!err) {
         real psi_dpsi[6];
+        real inv_r = 1.0 / r;
+        real inv_r2 = inv_r * inv_r;
         interperr += interp2Dcomp_eval_df(psi_dpsi, &Bdata->psi, r, z);
 
-        B_dB[0] = B_dB[0] - psi_dpsi[2]/r;
-        B_dB[1] = B_dB[1] + psi_dpsi[2]/(r*r)-psi_dpsi[5]/r;
-        B_dB[3] = B_dB[3] - psi_dpsi[4]/r;
-        B_dB[8] = B_dB[8] + psi_dpsi[1]/r;
-        B_dB[9] = B_dB[9] - psi_dpsi[1]/(r*r) + psi_dpsi[3]/r;
-        B_dB[11] = B_dB[11] + psi_dpsi[5]/r;
+        B_dB[0] = B_dB[0] - psi_dpsi[2] * inv_r;
+        B_dB[1] = B_dB[1] + psi_dpsi[2] * inv_r2 - psi_dpsi[5] * inv_r;
+        B_dB[3] = B_dB[3] - psi_dpsi[4] * inv_r;
+        B_dB[8] = B_dB[8] + psi_dpsi[1] * inv_r;
+        B_dB[9] = B_dB[9] - psi_dpsi[1] * inv_r2 + psi_dpsi[3] * inv_r;
+        B_dB[11] = B_dB[11] + psi_dpsi[5] * inv_r;
 
         /* Test for psi interpolation error */
         if(interperr) {

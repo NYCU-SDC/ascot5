@@ -465,6 +465,8 @@ int test_interp3D(real* err_df, int anl_func, int rep, int n_rnd,
     real err_f = 0.0;
     real df_anl[10]; /* Function value and derivatives */
     real df_spl[10];
+    real df4_spl[4];
+    real err_df4_consistency = 0.0;
     for(int i = 0; i < n_rnd; i++) {
         /* Draw random point */
         x_rnd = x_min + (real)rand()/(real)RAND_MAX*(x_max-x_min);
@@ -536,6 +538,7 @@ int test_interp3D(real* err_df, int anl_func, int rep, int n_rnd,
             start = clock();
             interp3Dcomp_eval_f(&f_spl, &str, x_rnd, y_rnd, z_rnd);
             interp3Dcomp_eval_df(df_spl, &str, x_rnd, y_rnd, z_rnd);
+            interp3Dcomp_eval_df4(df4_spl, &str, x_rnd, y_rnd, z_rnd);
             end = clock();
         }
         cpu_time[1] = cpu_time[1] + ((double) (end-start))/CLOCKS_PER_SEC;
@@ -544,11 +547,29 @@ int test_interp3D(real* err_df, int anl_func, int rep, int n_rnd,
         for(int j = 0; j < 10; j++) {
             err_df[j] += fabs(df_anl[j]-df_spl[j]);
         }
+        if(rep == COMP) {
+            for(int j = 0; j < 4; j++) {
+                err_df4_consistency += fabs(df_spl[j] - df4_spl[j]);
+            }
+        }
     }
     /* Average and print error */
     err_f /= n_rnd;
     for(int j = 0; j < 10; j++) {
         err_df[j] /= n_rnd;
+    }
+    if(rep == COMP) {
+        err_df4_consistency /= (n_rnd * 4);
+        if(err_df4_consistency > 1e-12) {
+            printf("3D COMP consistency check failed: avg |df-df4| = %le\n",
+                   err_df4_consistency);
+            free(x);
+            free(y);
+            free(z);
+            free(f_inp);
+            free(c);
+            return 1;
+        }
     }
 
     /* Free allocated memory */

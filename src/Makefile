@@ -72,7 +72,8 @@ CFLAGS+=-Wall -fPIC -std=c11 -D_XOPEN_SOURCE=700 $(DEFINES) $(FLAGS)
 ifeq ($(DEBUG),1)
 	CFLAGS+=-g -fsanitize=address,undefined
 else
-	CFLAGS+=-O2
+	# Default remains O2; OPTFLAGS lets job scripts append overrides like -O3.
+	CFLAGS+=-O2 $(OPTFLAGS)
 endif
 
 ifeq ($(CC), $(filter $(CC), h5cc h5pcc))

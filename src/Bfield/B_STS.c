@@ -101,7 +101,7 @@ int B_STS_init(B_STS_data* data,
         print_err("Error: Failed to initialize splines.\n");
         return 1;
     }
-    interp3Dcomp_setup(
+    err = interp3Dcomp_setup(
         &data->B_r, B_r, b_n_r, b_n_phi, b_n_z,
         NATURALBC, PERIODICBC, NATURALBC,
         b_r_min, b_r_max, b_phi_min, b_phi_max, b_z_min, b_z_max);
@@ -109,7 +109,7 @@ int B_STS_init(B_STS_data* data,
         print_err("Error: Failed to initialize splines.\n");
         return 1;
     }
-    interp3Dcomp_setup(
+    err = interp3Dcomp_setup(
         &data->B_phi, B_phi, b_n_r, b_n_phi, b_n_z,
         NATURALBC, PERIODICBC, NATURALBC,
         b_r_min, b_r_max, b_phi_min, b_phi_max, b_z_min, b_z_max);
@@ -117,7 +117,7 @@ int B_STS_init(B_STS_data* data,
         print_err("Error: Failed to initialize splines.\n");
         return 1;
     }
-    interp3Dcomp_setup(
+    err = interp3Dcomp_setup(
         &data->B_z, B_z, b_n_r, b_n_phi, b_n_z,
         NATURALBC, PERIODICBC, NATURALBC,
         b_r_min, b_r_max, b_phi_min, b_phi_max, b_z_min, b_z_max);
@@ -245,9 +245,9 @@ a5err B_STS_eval_psi_dpsi(real psi_dpsi[4], real r, real phi, real z,
                           B_STS_data* Bdata) {
     a5err err = 0;
     int interperr = 0; /* If error happened during interpolation */
-    real psi_dpsi_temp[10];
+    real psi_dpsi_temp[4];
 
-    interperr += interp3Dcomp_eval_df(psi_dpsi_temp, &Bdata->psi, r, phi, z);
+    interperr += interp3Dcomp_eval_df4(psi_dpsi_temp, &Bdata->psi, r, phi, z);
 
 
     psi_dpsi[0] = psi_dpsi_temp[0];
@@ -371,28 +371,10 @@ a5err B_STS_eval_B_dB(real B_dB[12], real r, real phi, real z,
                       B_STS_data* Bdata) {
     a5err err = 0;
     int interperr = 0; /* If error happened during interpolation */
-    real B_dB_temp[10];
 
-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_r, r, phi, z);
-
-    B_dB[0] = B_dB_temp[0];
-    B_dB[1] = B_dB_temp[1];
-    B_dB[2] = B_dB_temp[2];
-    B_dB[3] = B_dB_temp[3];
-
-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_phi, r, phi, z);
-
-    B_dB[4] = B_dB_temp[0];
-    B_dB[5] = B_dB_temp[1];
-    B_dB[6] = B_dB_temp[2];
-    B_dB[7] = B_dB_temp[3];
-
-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_z, r, phi, z);
-
-    B_dB[8] = B_dB_temp[0];
-    B_dB[9] = B_dB_temp[1];
-    B_dB[10] = B_dB_temp[2];
-    B_dB[11] = B_dB_temp[3];
+    interperr += interp3Dcomp_eval_df4(&B_dB[0], &Bdata->B_r, r, phi, z);
+    interperr += interp3Dcomp_eval_df4(&B_dB[4], &Bdata->B_phi, r, phi, z);
+    interperr += interp3Dcomp_eval_df4(&B_dB[8], &Bdata->B_z, r, phi, z);
 
     /* Test for B field interpolation error */
     if(interperr) {
