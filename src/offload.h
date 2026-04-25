@@ -13,10 +13,22 @@
 #if defined(GPU) && defined(_OPENMP)
 #define GPU_PARALLEL_LOOP_ALL_LEVELS \
     str_pragma(omp target teams distribute parallel for simd)
+#ifndef GPU_OMP_ASYNC_TARGET
+#define GPU_OMP_ASYNC_TARGET 0
+#endif
+#if GPU_OMP_ASYNC_TARGET
+#define GPU_PARALLEL_LOOP_ALL_LEVELS_ASYNC \
+    str_pragma(omp target teams distribute parallel for simd nowait)
+#else
+#define GPU_PARALLEL_LOOP_ALL_LEVELS_ASYNC \
+    str_pragma(omp target teams distribute parallel for simd)
+#endif
 #elif defined(GPU) && defined(_OPENACC)
 #define GPU_PARALLEL_LOOP_ALL_LEVELS str_pragma(acc parallel loop)
+#define GPU_PARALLEL_LOOP_ALL_LEVELS_ASYNC str_pragma(acc parallel loop async(1))
 #else
 #define GPU_PARALLEL_LOOP_ALL_LEVELS str_pragma(omp simd)
+#define GPU_PARALLEL_LOOP_ALL_LEVELS_ASYNC str_pragma(omp simd)
 #endif
 
 /**

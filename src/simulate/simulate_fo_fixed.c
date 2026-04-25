@@ -27,6 +27,11 @@
 DECLARE_TARGET_SIMD_UNIFORM(sim)
 real simulate_fo_fixed_inidt(sim_data* sim, particle_simd_fo* p, int i);
 
+/* On GPU path, avoid a host-side running-count sync every single time-step. */
+#ifndef FO_GPU_RUNNING_CHECK_INTERVAL
+#define FO_GPU_RUNNING_CHECK_INTERVAL 8
+#endif
+
 /**
  * @brief Simulates particles using fixed time-step
  *
@@ -67,6 +72,9 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
 
     /* Initialize running particles */
     int n_running = particle_cycle_fo(pq, &p, &sim->B_data, cycle);
+#ifdef GPU
+    int running_check_counter = 0;
+#endif
 
     /* Determine simulation time-step */
     #pragma omp simd
@@ -91,23 +99,26 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
     real* rnd = (real*) malloc(3*mrk_array_size*sizeof(real));
     GPU_MAP_TO_DEVICE(hin[0:mrk_array_size], rnd[0:3*mrk_array_size])
     while(n_running > 0) {
-        /* Store marker states */
-        GPU_PARALLEL_LOOP_ALL_LEVELS
-        for(int i = 0; i < p.n_mrk; i++) {
-            particle_copy_fo(&p, i, &p0, i);
-        }
         /*************************** Physics **********************************/
 
         /* Volume preserving algorithm for orbit-following */
         if(sim->enable_orbfol) {
             if(sim->enable_mhd) {
                 step_fo_vpa_mhd(
-                    &p, hin, &sim->B_data, &sim->E_data, &sim->boozer_data,
+                    &p, &p0, hin, &sim->B_data, &sim->E_data,
+                    &sim->boozer_data,
                     &sim->mhd_data, sim->enable_aldforce, sim->reverse_time);
             }
             else {
-                step_fo_vpa(&p, hin, &sim->B_data, &sim->E_data,
+                step_fo_vpa(&p, &p0, hin, &sim->B_data, &sim->E_data,
                             sim->enable_aldforce, sim->reverse_time);
+            }
+        }
+        else {
+            /* Keep p0 updated for diagnostics/endcond paths when orbfol is off. */
+            GPU_PARALLEL_LOOP_ALL_LEVELS
+            for(int i = 0; i < p.n_mrk; i++) {
+                particle_copy_fo(&p, i, &p0, i);
             }
         }
 
@@ -123,21 +134,10 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
         }
         /**********************************************************************/
 
-
-        /* Update simulation and cpu times */
+        /* Check possible end conditions (also advances marker times). */
         cputime = A5_WTIME;
-        GPU_PARALLEL_LOOP_ALL_LEVELS
-        for(int i = 0; i < p.n_mrk; i++) {
-            if(p.running[i]){
-                p.time[i]    += ( 1.0 - 2.0 * ( sim->reverse_time > 0 ) ) * hin[i];
-                p.mileage[i] += hin[i];
-                p.cputime[i] += cputime - cputime_last;
-            }
-        }
+        endcond_check_fo(&p, &p0, hin, cputime - cputime_last, sim);
         cputime_last = cputime;
-
-        /* Check possible end conditions */
-        endcond_check_fo(&p, &p0, sim);
 
         /* Update diagnostics */
         if(!(sim->record_mode)) {
@@ -174,15 +174,24 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
 
         /* Update running particles */
 #ifdef GPU
-        n_running = 0;
-        GPU_PARALLEL_LOOP_ALL_LEVELS_REDUCTION(n_running)
-        for(int i = 0; i < p.n_mrk; i++)
-        {
-            if(p.running[i] > 0) n_running++;
+        running_check_counter++;
+        if(running_check_counter >= FO_GPU_RUNNING_CHECK_INTERVAL) {
+            running_check_counter = 0;
+            n_running = 0;
+            GPU_PARALLEL_LOOP_ALL_LEVELS_REDUCTION(n_running)
+            for(int i = 0; i < p.n_mrk; i++)
+            {
+                if(p.running[i] > 0) n_running++;
+            }
+        }
+        else {
+            /* Keep the loop going and defer host-visible completion check. */
+            n_running = 1;
         }
 #else
         n_running = particle_cycle_fo(pq, &p, &sim->B_data, cycle);
 #endif
+
 #ifndef GPU
         /* Determine simulation time-step for new particles */
         GPU_PARALLEL_LOOP_ALL_LEVELS

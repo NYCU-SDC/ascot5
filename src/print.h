@@ -23,7 +23,7 @@ enum VERBOSE_RANK {
 /**
  * @brief Verbose level
  */
-extern const char VERBOSE_LEVEL;
+extern const int VERBOSE_LEVEL;
 
 /**
  * @brief Print to standard output

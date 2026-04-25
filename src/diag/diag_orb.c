@@ -254,7 +254,7 @@ void diag_orb_update_fo(diag_orb_data* data, particle_simd_fo* p_f,
                    if marker has met some end condition. */
                 real dt = data->mrk_recorded[imrk] + data->writeInterval
                     - p_f->mileage[i];
-                if( dt <= 0 || p_f->endcond[i] > 0 ) {
+                if( dt <= 0 || (p_f->endcond[i] > 0 && p_i->running[i]) ) {
                     idx = imrk * data->Npnt + ipoint;
 
                     data->id[idx]     = (real)p_f->id[i];
@@ -459,7 +459,7 @@ void diag_orb_update_gc(diag_orb_data* data, particle_simd_gc* p_f,
                 real dt = data->mrk_recorded[imrk] + data->writeInterval
                     - p_f->mileage[i];
 
-                if( dt <= 0 || p_f->endcond[i] > 0 ) {
+                if( dt <= 0 || (p_f->endcond[i] > 0 && p_i->running[i]) ) {
                                     idx = imrk * data->Npnt + ipoint;
 
                     data->id[idx]     = (real)p_f->id[i];
@@ -661,7 +661,7 @@ void diag_orb_update_ml(diag_orb_data* data, particle_simd_ml* p_f,
                    if marker has met some end condition. */
                 real dt = data->mrk_recorded[imrk] + data->writeInterval
                     - p_f->mileage[i];
-                if( dt <= 0 || p_f->endcond[i] > 0 ) {
+                if( dt <= 0 || (p_f->endcond[i] > 0 && p_i->running[i]) ) {
                     idx = imrk * data->Npnt + ipoint;
                     data->id[idx]      = (real)p_f->id[i];
                     data->mileage[idx] = p_f->mileage[i];

@@ -33,11 +33,13 @@
  * @param Edata pointer to electric field data
  * @param aldforce indicates whether Abraham-Lorentz-Dirac force is enabled
  */
-void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+void step_fo_vpa(particle_simd_fo* p, particle_simd_fo* p0, real* h,
+                 B_field_data* Bdata,
                  E_field_data* Edata, int aldforce, int reverse_time) {
     GPU_DATA_IS_MAPPED(h[0:p->n_mrk])
     GPU_PARALLEL_LOOP_ALL_LEVELS
     for(int i = 0; i < p->n_mrk; i++) {
+        particle_copy_fo(p, i, p0, i);
         if(p->running[i]) {
             a5err errflag = 0;
             real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
@@ -92,26 +94,29 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
                 pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
                 pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
 
-                /* Second helper variable pplus*/
+                /* Second helper variable pplus using Boris cross-product form
+                 * equivalent to matrix formulation but cheaper on GPU. */
                 real d = (p->charge[i]*dt/(2*p->mass[i])) /
                     sqrt( 1 + math_dot(pminus,pminus) );
-                real d2 = d*d;
+                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
+                real t2 = math_dot(tvec, tvec);
+                real svec[3] = {
+                    2.0*tvec[0]/(1.0+t2),
+                    2.0*tvec[1]/(1.0+t2),
+                    2.0*tvec[2]/(1.0+t2)};
 
-                real Bhat[9] = {       0,  Bxyz[2], -Bxyz[1],
-                                -Bxyz[2],        0,  Bxyz[0],
-                                 Bxyz[1], -Bxyz[0],        0};
-                real Bhat2[9];
-                math_matmul(Bhat, Bhat, 3, 3, 3, Bhat2);
-
-                real B2 = Bxyz[0]*Bxyz[0] + Bxyz[1]*Bxyz[1] + Bxyz[2]*Bxyz[2];
-
-                real A[9];
-                for(int j=0; j<9; j++) {
-                    A[j] = (Bhat[j] + d*Bhat2[j]) * (2.0*d/(1.0+d2*B2));
-                }
+                real pprime[3];
+                real ctmp[3];
+                math_cross(pminus, tvec, ctmp);
+                pprime[0] = pminus[0] + ctmp[0];
+                pprime[1] = pminus[1] + ctmp[1];
+                pprime[2] = pminus[2] + ctmp[2];
 
                 real pplus[3];
-                math_matmul(pminus, A, 1, 3, 3, pplus);
+                math_cross(pprime, svec, ctmp);
+                pplus[0] = ctmp[0];
+                pplus[1] = ctmp[1];
+                pplus[2] = ctmp[2];
 
                 /* Take the step */
                 real pfinal[3];
@@ -191,23 +196,25 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
 
             /* Evaluate Abraham-Lorentz-Dirac force (if enabled) is evaluated
              * separately using the Euler method */
-            real Bnorm = math_normc(p->B_r[i], p->B_phi[i], p->B_z[i]);
-            real pnorm = math_normc(p->p_r[i], p->p_phi[i], p->p_z[i]);
-            real t_ald = phys_ald_force_chartime(
-                p->charge[i], p->mass[i], Bnorm, gamma) * aldforce;
-            real pparbhatperB = (
-                  p->p_r[i]*p->B_r[i] + p->p_phi[i]*p->B_phi[i]
-                + p->p_z[i]*p->B_z[i] ) / ( Bnorm * Bnorm * pnorm );
-            real pperpvec[3] = {
-                p->p_r[i]   - pparbhatperB * p->B_r[i],
-                p->p_phi[i] - pparbhatperB * p->B_phi[i],
-                p->p_z[i]   - pparbhatperB * p->B_z[i] };
-            real C = (   pperpvec[0]*pperpvec[0] + pperpvec[1]*pperpvec[1]
-                       + pperpvec[2]*pperpvec[2] )
-                       / ( p->mass[i]*p->mass[i] * CONST_C2 );
-            p->p_r[i]   -= t_ald * ( pperpvec[0] + C * p->p_r[i] );
-            p->p_phi[i] -= t_ald * ( pperpvec[1] + C * p->p_phi[i] );
-            p->p_z[i]   -= t_ald * ( pperpvec[2] + C * p->p_z[i] );
+            if(aldforce && !errflag) {
+                real Bnorm = math_normc(p->B_r[i], p->B_phi[i], p->B_z[i]);
+                real pnorm = math_normc(p->p_r[i], p->p_phi[i], p->p_z[i]);
+                real t_ald = phys_ald_force_chartime(
+                    p->charge[i], p->mass[i], Bnorm, gamma);
+                real pparbhatperB = (
+                      p->p_r[i]*p->B_r[i] + p->p_phi[i]*p->B_phi[i]
+                    + p->p_z[i]*p->B_z[i] ) / ( Bnorm * Bnorm * pnorm );
+                real pperpvec[3] = {
+                    p->p_r[i]   - pparbhatperB * p->B_r[i],
+                    p->p_phi[i] - pparbhatperB * p->B_phi[i],
+                    p->p_z[i]   - pparbhatperB * p->B_z[i] };
+                real C = (   pperpvec[0]*pperpvec[0] + pperpvec[1]*pperpvec[1]
+                           + pperpvec[2]*pperpvec[2] )
+                           / ( p->mass[i]*p->mass[i] * CONST_C2 );
+                p->p_r[i]   -= t_ald * ( pperpvec[0] + C * p->p_r[i] );
+                p->p_phi[i] -= t_ald * ( pperpvec[1] + C * p->p_phi[i] );
+                p->p_z[i]   -= t_ald * ( pperpvec[2] + C * p->p_z[i] );
+            }
 
             /* Error handling */
             if(errflag) {
@@ -233,13 +240,15 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
  * @param aldforce indicates whether Abraham-Lorentz-Dirac force is enabled
  */
 void step_fo_vpa_mhd(
-    particle_simd_fo* p, real* h, B_field_data* Bdata, E_field_data* Edata,
+    particle_simd_fo* p, particle_simd_fo* p0, real* h,
+    B_field_data* Bdata, E_field_data* Edata,
     boozer_data* boozer, mhd_data* mhd, int aldforce, int reverse_time) {
 
     int i;
     /* Following loop will be executed simultaneously for all i */
     #pragma omp simd  aligned(h : 64)
     for(i = 0; i < NSIMD; i++) {
+        particle_copy_fo(p, i, p0, i);
         if(p->running[i]) {
             a5err errflag = 0;
             real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
@@ -308,26 +317,29 @@ void step_fo_vpa_mhd(
                 pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
                 pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
 
-                /* Second helper variable pplus*/
+                /* Second helper variable pplus using Boris cross-product form
+                 * equivalent to matrix formulation but cheaper on GPU. */
                 real d = (p->charge[i]*dt/(2*p->mass[i])) /
                     sqrt( 1 + math_dot(pminus,pminus) );
-                real d2 = d*d;
+                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
+                real t2 = math_dot(tvec, tvec);
+                real svec[3] = {
+                    2.0*tvec[0]/(1.0+t2),
+                    2.0*tvec[1]/(1.0+t2),
+                    2.0*tvec[2]/(1.0+t2)};
 
-                real Bhat[9] = {       0,  Bxyz[2], -Bxyz[1],
-                                -Bxyz[2],        0,  Bxyz[0],
-                        Bxyz[1], -Bxyz[0],        0};
-                real Bhat2[9];
-                math_matmul(Bhat, Bhat, 3, 3, 3, Bhat2);
-
-                real B2 = Bxyz[0]*Bxyz[0] + Bxyz[1]*Bxyz[1] + Bxyz[2]*Bxyz[2];
-
-                real A[9];
-                for(int j=0; j<9; j++) {
-                    A[j] = (Bhat[j] + d*Bhat2[j]) * (2.0*d/(1+d2*B2));
-                }
+                real pprime[3];
+                real ctmp[3];
+                math_cross(pminus, tvec, ctmp);
+                pprime[0] = pminus[0] + ctmp[0];
+                pprime[1] = pminus[1] + ctmp[1];
+                pprime[2] = pminus[2] + ctmp[2];
 
                 real pplus[3];
-                math_matmul(pminus, A, 1, 3, 3, pplus);
+                math_cross(pprime, svec, ctmp);
+                pplus[0] = ctmp[0];
+                pplus[1] = ctmp[1];
+                pplus[2] = ctmp[2];
 
                 /* Take the step */
                 real pfinal[3];

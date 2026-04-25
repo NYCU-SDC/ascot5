@@ -113,7 +113,6 @@ void hist_update_fo(histogram* hist, particle_simd_fo* p_f,
                   - ppar * ppar);
 
         axis = &hist->axes[15];
-        size_t nq = axis->n;
         size_t i15 = 0;
 
         axis = &hist->axes[14];
@@ -121,19 +120,15 @@ void hist_update_fo(histogram* hist, particle_simd_fo* p_f,
             p_f->time[i], axis->n, axis->min, axis->max);
 
         axis = &hist->axes[13];
-        size_t nptor = axis->n;
         size_t i13 = 0;
 
         axis = &hist->axes[12];
-        size_t nmu = axis->n;
         size_t i12 = 0;
 
         axis = &hist->axes[11];
-        size_t nxi = axis->n;
         size_t i11 = 0;
 
         axis = &hist->axes[10];
-        size_t nekin = axis->n;
         size_t i10 = 0;
 
         axis = &hist->axes[9];
@@ -175,7 +170,7 @@ void hist_update_fo(histogram* hist, particle_simd_fo* p_f,
              + i15;
         weight = p_f->weight[i];
         GPU_ATOMIC
-        hist->bins[index] += p_f->weight[i];
+        hist->bins[index] += weight;
 #else
         size_t* n = hist->strides;
         index[i] = i0*n[0]  + i1*n[1]   + i2*n[2]   + i3*n[3]   + i4*n[4]

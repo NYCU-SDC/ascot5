@@ -34,7 +34,7 @@ enum ENDCOND_FLAG {
 void endcond_check_gc(particle_simd_gc* p_f, particle_simd_gc* p_i,
                       sim_data* sim);
 void endcond_check_fo(particle_simd_fo* p_f, particle_simd_fo* p_i,
-                      sim_data* sim);
+                      real* h, real cputime, sim_data* sim);
 void endcond_check_ml(particle_simd_ml* p_f, particle_simd_ml* p_i,
                       sim_data* sim);
 
