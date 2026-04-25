@@ -34,12 +34,13 @@
  * @param aldforce indicates whether Abraham-Lorentz-Dirac force is enabled
  */
 void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
-                 E_field_data* Edata, int aldforce) {
+                 E_field_data* Edata, int aldforce, int reverse_time) {
     GPU_DATA_IS_MAPPED(h[0:p->n_mrk])
     GPU_PARALLEL_LOOP_ALL_LEVELS
     for(int i = 0; i < p->n_mrk; i++) {
         if(p->running[i]) {
             a5err errflag = 0;
+            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
 
             real R0   = p->r[i];
             real z0   = p->z[i];
@@ -57,9 +58,9 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
 
             /* Take a half step and evaluate fields at that position */
             real gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
-            posxyz[0] = posxyz0[0] + pxyz[0] * h[i] / (2.0 * gamma * mass);
-            posxyz[1] = posxyz0[1] + pxyz[1] * h[i] / (2.0 * gamma * mass);
-            posxyz[2] = posxyz0[2] + pxyz[2] * h[i] / (2.0 * gamma * mass);
+            posxyz[0] = posxyz0[0] + pxyz[0] * dt / (2.0 * gamma * mass);
+            posxyz[1] = posxyz0[1] + pxyz[1] * dt / (2.0 * gamma * mass);
+            posxyz[2] = posxyz0[2] + pxyz[2] * dt / (2.0 * gamma * mass);
 
             math_xyz2rpz(posxyz, posrpz);
 
@@ -67,11 +68,11 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
             real Erpz[3];
             if(!errflag) {
                 errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
-                                         t0 + h[i]/2.0, Bdata);
+                                         t0 + dt/2.0, Bdata);
             }
             if(!errflag) {
                 errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
-                                         t0 + h[i]/2.0, Edata, Bdata);
+                                         t0 + dt/2.0, Edata, Bdata);
             }
 
             real fposxyz[3]; // final position in cartesian coordinates
@@ -86,13 +87,13 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
 
                 /* Evaluate helper variable pminus */
                 real pminus[3];
-                real sigma = p->charge[i]*h[i]/(2*p->mass[i]*CONST_C);
+                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
                 pminus[0] = pxyz[0] / (mass * CONST_C) + sigma * Exyz[0];
                 pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
                 pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
 
                 /* Second helper variable pplus*/
-                real d = (p->charge[i]*h[i]/(2*p->mass[i])) /
+                real d = (p->charge[i]*dt/(2*p->mass[i])) /
                     sqrt( 1 + math_dot(pminus,pminus) );
                 real d2 = d*d;
 
@@ -124,9 +125,9 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
             }
 
             gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
-            fposxyz[0] = posxyz[0] + h[i] * pxyz[0] / (2.0 * gamma * mass);
-            fposxyz[1] = posxyz[1] + h[i] * pxyz[1] / (2.0 * gamma * mass);
-            fposxyz[2] = posxyz[2] + h[i] * pxyz[2] / (2.0 * gamma * mass);
+            fposxyz[0] = posxyz[0] + dt * pxyz[0] / (2.0 * gamma * mass);
+            fposxyz[1] = posxyz[1] + dt * pxyz[1] / (2.0 * gamma * mass);
+            fposxyz[2] = posxyz[2] + dt * pxyz[2] / (2.0 * gamma * mass);
 
             if(!errflag) {
                 /* Back to cylindrical coordinates */
@@ -151,11 +152,11 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
             real rho[2];
             if(!errflag) {
                 errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
-                                            t0 + h[i], Bdata);
+                                            t0 + dt, Bdata);
             }
             if(!errflag) {
                 errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
-                                           t0 + h[i], Bdata);
+                                           t0 + dt, Bdata);
             }
             if(!errflag) {
                 errflag = B_field_eval_rho(rho, psi[0], Bdata);
@@ -233,7 +234,7 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
  */
 void step_fo_vpa_mhd(
     particle_simd_fo* p, real* h, B_field_data* Bdata, E_field_data* Edata,
-    boozer_data* boozer, mhd_data* mhd, int aldforce) {
+    boozer_data* boozer, mhd_data* mhd, int aldforce, int reverse_time) {
 
     int i;
     /* Following loop will be executed simultaneously for all i */
@@ -241,6 +242,7 @@ void step_fo_vpa_mhd(
     for(i = 0; i < NSIMD; i++) {
         if(p->running[i]) {
             a5err errflag = 0;
+            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
 
             real R0   = p->r[i];
             real z0   = p->z[i];
@@ -258,9 +260,9 @@ void step_fo_vpa_mhd(
 
             /* Take a half step and evaluate fields at that position */
             real gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
-            posxyz[0] = posxyz0[0] + pxyz[0] * h[i] / (2 * gamma * mass);
-            posxyz[1] = posxyz0[1] + pxyz[1] * h[i] / (2 * gamma * mass);
-            posxyz[2] = posxyz0[2] + pxyz[2] * h[i] / (2 * gamma * mass);
+            posxyz[0] = posxyz0[0] + pxyz[0] * dt / (2 * gamma * mass);
+            posxyz[1] = posxyz0[1] + pxyz[1] * dt / (2 * gamma * mass);
+            posxyz[2] = posxyz0[2] + pxyz[2] * dt / (2 * gamma * mass);
 
             math_xyz2rpz(posxyz,posrpz);
 
@@ -268,18 +270,18 @@ void step_fo_vpa_mhd(
             real Erpz[3];
             if(!errflag) {
                 errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
-                                         t0 + h[i]/2, Bdata);
+                                         t0 + dt/2, Bdata);
             }
             if(!errflag) {
                 errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
-                                         t0 + h[i]/2, Edata, Bdata);
+                                         t0 + dt/2, Edata, Bdata);
             }
 
             real pert[7];
             int pertonly = 0;
             if(!errflag) {
                 errflag = mhd_perturbations(
-                    pert, posrpz[0], posrpz[1], posrpz[2], t0 + h[i]/2,
+                    pert, posrpz[0], posrpz[1], posrpz[2], t0 + dt/2,
                     pertonly, MHD_INCLUDE_ALL, boozer, mhd, Bdata);
             }
             Brpz[0] = pert[0];
@@ -301,13 +303,13 @@ void step_fo_vpa_mhd(
 
                 /* Evaluate helper variable pminus */
                 real pminus[3];
-                real sigma = p->charge[i]*h[i]/(2*p->mass[i]*CONST_C);
+                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
                 pminus[0] = pxyz[0] / (mass * CONST_C) + sigma * Exyz[0];
                 pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
                 pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
 
                 /* Second helper variable pplus*/
-                real d = (p->charge[i]*h[i]/(2*p->mass[i])) /
+                real d = (p->charge[i]*dt/(2*p->mass[i])) /
                     sqrt( 1 + math_dot(pminus,pminus) );
                 real d2 = d*d;
 
@@ -339,9 +341,9 @@ void step_fo_vpa_mhd(
             }
 
             gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
-            fposxyz[0] = posxyz[0] + h[i] * pxyz[0] / (2 * gamma * mass);
-            fposxyz[1] = posxyz[1] + h[i] * pxyz[1] / (2 * gamma * mass);
-            fposxyz[2] = posxyz[2] + h[i] * pxyz[2] / (2 * gamma * mass);
+            fposxyz[0] = posxyz[0] + dt * pxyz[0] / (2 * gamma * mass);
+            fposxyz[1] = posxyz[1] + dt * pxyz[1] / (2 * gamma * mass);
+            fposxyz[2] = posxyz[2] + dt * pxyz[2] / (2 * gamma * mass);
 
             if(!errflag) {
                 /* Back to cylindrical coordinates */
@@ -366,11 +368,11 @@ void step_fo_vpa_mhd(
             real rho[2];
             if(!errflag) {
                 errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
-                                            t0 + h[i], Bdata);
+                                            t0 + dt, Bdata);
             }
             if(!errflag) {
                 errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
-                                           t0 + h[i], Bdata);
+                                           t0 + dt, Bdata);
             }
             if(!errflag) {
                 errflag = B_field_eval_rho(rho, psi[0], Bdata);

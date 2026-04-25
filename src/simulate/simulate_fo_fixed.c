@@ -98,32 +98,16 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
         }
         /*************************** Physics **********************************/
 
-        /* Set time-step negative if tracing backwards in time */
-        GPU_PARALLEL_LOOP_ALL_LEVELS
-        for(int i = 0; i < p.n_mrk; i++) {
-            if(sim->reverse_time) {
-                hin[i]  = -hin[i];
-            }
-        }
-
         /* Volume preserving algorithm for orbit-following */
         if(sim->enable_orbfol) {
             if(sim->enable_mhd) {
                 step_fo_vpa_mhd(
                     &p, hin, &sim->B_data, &sim->E_data, &sim->boozer_data,
-                    &sim->mhd_data, sim->enable_aldforce);
+                    &sim->mhd_data, sim->enable_aldforce, sim->reverse_time);
             }
             else {
                 step_fo_vpa(&p, hin, &sim->B_data, &sim->E_data,
-                            sim->enable_aldforce);
-            }
-        }
-
-        /* Switch sign of the time-step again if it was reverted earlier */
-        GPU_PARALLEL_LOOP_ALL_LEVELS
-        for(int i = 0; i < p.n_mrk; i++) {
-            if(sim->reverse_time) {
-                hin[i]  = -hin[i];
+                            sim->enable_aldforce, sim->reverse_time);
             }
         }
 
