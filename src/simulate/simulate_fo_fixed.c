@@ -29,7 +29,7 @@ real simulate_fo_fixed_inidt(sim_data* sim, particle_simd_fo* p, int i);
 
 /* On GPU path, avoid a host-side running-count sync every single time-step. */
 #ifndef FO_GPU_RUNNING_CHECK_INTERVAL
-#define FO_GPU_RUNNING_CHECK_INTERVAL 8
+#define FO_GPU_RUNNING_CHECK_INTERVAL 32
 #endif
 
 /**
