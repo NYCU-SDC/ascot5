@@ -13,6 +13,15 @@
 void step_fo_vpa(particle_simd_fo* p, particle_simd_fo* p0, real* h,
                  B_field_data* Bdata,
                  E_field_data* Edata, int aldforce, int reverse_time);
+void step_fo_vpa_endcond(particle_simd_fo* p, particle_simd_fo* p0, real* h,
+                         B_field_data* Bdata,
+                         E_field_data* Edata, sim_data* sim, real cputime,
+                         int aldforce, int reverse_time);
+void step_fo_vpa_mhd_endcond(
+    particle_simd_fo* p, particle_simd_fo* p0, real* h,
+    B_field_data* Bdata, E_field_data* Edata,
+    boozer_data* boozer, mhd_data* mhd, sim_data* sim, real cputime,
+    int aldforce, int reverse_time);
 void step_fo_vpa_mhd(
     particle_simd_fo* p, particle_simd_fo* p0, real* h,
     B_field_data* Bdata, E_field_data* Edata,

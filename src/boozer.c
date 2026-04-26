@@ -121,6 +121,9 @@ void boozer_offload(boozer_data* data) {
  *
  * @return zero on success
  */
+#if defined(GPU) && defined(_OPENACC)
+#pragma acc routine seq
+#endif
 a5err boozer_eval_psithetazeta(real psithetazeta[12], int* isinside,
                                real r, real phi, real z, B_field_data* Bdata,
                                boozer_data* boozerdata) {

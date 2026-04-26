@@ -29,7 +29,7 @@ real simulate_fo_fixed_inidt(sim_data* sim, particle_simd_fo* p, int i);
 
 /* On GPU path, avoid a host-side running-count sync every single time-step. */
 #ifndef FO_GPU_RUNNING_CHECK_INTERVAL
-#define FO_GPU_RUNNING_CHECK_INTERVAL 32
+#define FO_GPU_RUNNING_CHECK_INTERVAL 512
 #endif
 
 /**
@@ -98,16 +98,41 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
     particle_offload_fo(&p0);
     real* rnd = (real*) malloc(3*mrk_array_size*sizeof(real));
     GPU_MAP_TO_DEVICE(hin[0:mrk_array_size], rnd[0:3*mrk_array_size])
+
+#if defined(GPU) && defined(_OPENACC)
+    /* Keep the long-lived simulation state resident across the full step loop. */
+    #pragma acc data present(hin[0:mrk_array_size], rnd[0:3*mrk_array_size], p[0:1], p0[0:1])
+    {
+#endif
     while(n_running > 0) {
         /*************************** Physics **********************************/
 
         /* Volume preserving algorithm for orbit-following */
         if(sim->enable_orbfol) {
             if(sim->enable_mhd) {
-                step_fo_vpa_mhd(
-                    &p, &p0, hin, &sim->B_data, &sim->E_data,
-                    &sim->boozer_data,
-                    &sim->mhd_data, sim->enable_aldforce, sim->reverse_time);
+                if(!sim->enable_clmbcol && !sim->enable_atomic) {
+                    cputime = A5_WTIME;
+                    step_fo_vpa_mhd_endcond(
+                        &p, &p0, hin, &sim->B_data, &sim->E_data,
+                        &sim->boozer_data, &sim->mhd_data, sim,
+                        cputime - cputime_last, sim->enable_aldforce,
+                        sim->reverse_time);
+                    cputime_last = cputime;
+                }
+                else {
+                    step_fo_vpa_mhd(
+                        &p, &p0, hin, &sim->B_data, &sim->E_data,
+                        &sim->boozer_data,
+                        &sim->mhd_data, sim->enable_aldforce, sim->reverse_time);
+                }
+            }
+            else if(!sim->enable_clmbcol && !sim->enable_atomic) {
+                cputime = A5_WTIME;
+                step_fo_vpa_endcond(
+                    &p, &p0, hin, &sim->B_data, &sim->E_data, sim,
+                    cputime - cputime_last, sim->enable_aldforce,
+                    sim->reverse_time);
+                cputime_last = cputime;
             }
             else {
                 step_fo_vpa(&p, &p0, hin, &sim->B_data, &sim->E_data,
@@ -135,9 +160,12 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
         /**********************************************************************/
 
         /* Check possible end conditions (also advances marker times). */
-        cputime = A5_WTIME;
-        endcond_check_fo(&p, &p0, hin, cputime - cputime_last, sim);
-        cputime_last = cputime;
+        if(!(sim->enable_orbfol && !sim->enable_mhd &&
+             !sim->enable_clmbcol && !sim->enable_atomic)) {
+            cputime = A5_WTIME;
+            endcond_check_fo(&p, &p0, hin, cputime - cputime_last, sim);
+            cputime_last = cputime;
+        }
 
         /* Update diagnostics */
         if(!(sim->record_mode)) {
@@ -202,6 +230,9 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
         }
 #endif
     }
+#if defined(GPU) && defined(_OPENACC)
+    }
+#endif
     /* All markers simulated! */
 #ifdef GPU
     GPU_MAP_FROM_DEVICE(sim[0:1])

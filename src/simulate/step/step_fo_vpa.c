@@ -12,6 +12,10 @@
 #include "../../error.h"
 #include "../../B_field.h"
 #include "../../E_field.h"
+#include "../../wall.h"
+#include "../../plasma.h"
+#include "../../simulate.h"
+#include "../../endcond.h"
 #include "../../boozer.h"
 #include "../../mhd.h"
 #include "../../particle.h"
@@ -36,8 +40,13 @@
 void step_fo_vpa(particle_simd_fo* p, particle_simd_fo* p0, real* h,
                  B_field_data* Bdata,
                  E_field_data* Edata, int aldforce, int reverse_time) {
+#if defined(GPU) && defined(_OPENACC)
+    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:p->n_mrk], \
+                                      Bdata[0:1], Edata[0:1])
+#else
     GPU_DATA_IS_MAPPED(h[0:p->n_mrk])
     GPU_PARALLEL_LOOP_ALL_LEVELS
+#endif
     for(int i = 0; i < p->n_mrk; i++) {
         particle_copy_fo(p, i, p0, i);
         if(p->running[i]) {
@@ -225,6 +234,178 @@ void step_fo_vpa(particle_simd_fo* p, particle_simd_fo* p0, real* h,
     }
 }
 
+void step_fo_vpa_endcond(particle_simd_fo* p, particle_simd_fo* p0, real* h,
+                         B_field_data* Bdata,
+                         E_field_data* Edata, sim_data* sim, real cputime,
+                         int aldforce, int reverse_time) {
+#if defined(GPU) && defined(_OPENACC)
+    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:p->n_mrk], \
+                                      Bdata[0:1], Edata[0:1], sim[0:1])
+#else
+    GPU_DATA_IS_MAPPED(h[0:p->n_mrk])
+    GPU_PARALLEL_LOOP_ALL_LEVELS
+#endif
+    for(int i = 0; i < p->n_mrk; i++) {
+        particle_copy_fo(p, i, p0, i);
+        if(p->running[i]) {
+            a5err errflag = 0;
+            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
+
+            real R0   = p->r[i];
+            real z0   = p->z[i];
+            real t0   = p->time[i];
+            real mass = p->mass[i];
+
+            real prpz[3] = {p->p_r[i], p->p_phi[i], p->p_z[i]};
+            real pxyz[3];
+            math_vec_rpz2xyz(prpz, pxyz, p->phi[i]);
+
+            real posrpz[3] = {p->r[i], p->phi[i], p->z[i]};
+            real posxyz0[3],posxyz[3];
+            math_rpz2xyz(posrpz, posxyz0);
+
+            real inv_mass_c = 1.0 / (mass * CONST_C);
+            real p2 = math_dot(pxyz, pxyz);
+            real gamma = sqrt(1.0 + p2 * inv_mass_c * inv_mass_c);
+            real half_dt_over_gammamass = 0.5 * dt / (gamma * mass);
+            posxyz[0] = posxyz0[0] + pxyz[0] * half_dt_over_gammamass;
+            posxyz[1] = posxyz0[1] + pxyz[1] * half_dt_over_gammamass;
+            posxyz[2] = posxyz0[2] + pxyz[2] * half_dt_over_gammamass;
+
+            math_xyz2rpz(posxyz, posrpz);
+
+            real Brpz[3];
+            real Erpz[3];
+            if(!errflag) {
+                errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
+                                         t0 + dt/2.0, Bdata);
+            }
+            if(!errflag) {
+                errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
+                                         t0 + dt/2.0, Edata, Bdata);
+            }
+
+            real fposxyz[3];
+            if(!errflag) {
+                real Bxyz[3];
+                real Exyz[3];
+
+                math_vec_rpz2xyz(Brpz, Bxyz, posrpz[1]);
+                math_vec_rpz2xyz(Erpz, Exyz, posrpz[1]);
+
+                real pminus[3];
+                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
+                pminus[0] = pxyz[0] * inv_mass_c + sigma * Exyz[0];
+                pminus[1] = pxyz[1] * inv_mass_c + sigma * Exyz[1];
+                pminus[2] = pxyz[2] * inv_mass_c + sigma * Exyz[2];
+
+                real d = (p->charge[i]*dt/(2*p->mass[i])) /
+                    sqrt( 1 + math_dot(pminus,pminus) );
+                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
+                real t2 = math_dot(tvec, tvec);
+                real svec[3] = {
+                    2.0*tvec[0]/(1.0+t2),
+                    2.0*tvec[1]/(1.0+t2),
+                    2.0*tvec[2]/(1.0+t2)};
+
+                real pprime[3];
+                real ctmp[3];
+                math_cross(pminus, tvec, ctmp);
+                pprime[0] = pminus[0] + ctmp[0];
+                pprime[1] = pminus[1] + ctmp[1];
+                pprime[2] = pminus[2] + ctmp[2];
+
+                real pplus[3];
+                math_cross(pprime, svec, ctmp);
+                pplus[0] = ctmp[0];
+                pplus[1] = ctmp[1];
+                pplus[2] = ctmp[2];
+
+                real pfinal[3];
+                pfinal[0] = pminus[0] + pplus[0] + sigma*Exyz[0];
+                pfinal[1] = pminus[1] + pplus[1] + sigma*Exyz[1];
+                pfinal[2] = pminus[2] + pplus[2] + sigma*Exyz[2];
+
+                pxyz[0] = pfinal[0] * mass * CONST_C;
+                pxyz[1] = pfinal[1] * mass * CONST_C;
+                pxyz[2] = pfinal[2] * mass * CONST_C;
+            }
+
+            p2 = math_dot(pxyz, pxyz);
+            gamma = sqrt(1.0 + p2 * inv_mass_c * inv_mass_c);
+            half_dt_over_gammamass = 0.5 * dt / (gamma * mass);
+            fposxyz[0] = posxyz[0] + pxyz[0] * half_dt_over_gammamass;
+            fposxyz[1] = posxyz[1] + pxyz[1] * half_dt_over_gammamass;
+            fposxyz[2] = posxyz[2] + pxyz[2] * half_dt_over_gammamass;
+
+            if(!errflag) {
+                p->r[i] = sqrt(fposxyz[0]*fposxyz[0]+fposxyz[1]*fposxyz[1]);
+
+                p->phi[i] += atan2(
+                    posxyz0[0] * fposxyz[1] - posxyz0[1] * fposxyz[0],
+                    posxyz0[0] * fposxyz[0] + posxyz0[1] * fposxyz[1] );
+                p->z[i] = fposxyz[2];
+
+                real cosp = cos(p->phi[i]);
+                real sinp = sin(p->phi[i]);
+                p->p_r[i]   =  pxyz[0] * cosp + pxyz[1] * sinp;
+                p->p_phi[i] = -pxyz[0] * sinp + pxyz[1] * cosp;
+                p->p_z[i]   =  pxyz[2];
+            }
+
+            real BdBrpz[15];
+            real psi[1];
+            real rho[2];
+            if(!errflag) {
+                errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
+                                            t0 + dt, Bdata);
+            }
+            if(!errflag) {
+                errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
+                                           t0 + dt, Bdata);
+            }
+            if(!errflag) {
+                errflag = B_field_eval_rho(rho, psi[0], Bdata);
+            }
+
+            if(!errflag) {
+                p->B_r[i]        = BdBrpz[0];
+                p->B_r_dr[i]     = BdBrpz[1];
+                p->B_r_dphi[i]   = BdBrpz[2];
+                p->B_r_dz[i]     = BdBrpz[3];
+
+                p->B_phi[i]      = BdBrpz[4];
+                p->B_phi_dr[i]   = BdBrpz[5];
+                p->B_phi_dphi[i] = BdBrpz[6];
+                p->B_phi_dz[i]   = BdBrpz[7];
+
+                p->B_z[i]        = BdBrpz[8];
+                p->B_z_dr[i]     = BdBrpz[9];
+                p->B_z_dphi[i]   = BdBrpz[10];
+                p->B_z_dz[i]     = BdBrpz[11];
+
+                p->rho[i] = rho[0];
+
+                real axisrz[2];
+                errflag = B_field_get_axis_rz(axisrz, Bdata, p->phi[i]);
+                p->theta[i] += atan2(   (R0-axisrz[0]) * (p->z[i]-axisrz[1])
+                                      - (z0-axisrz[1]) * (p->r[i]-axisrz[0]),
+                                        (R0-axisrz[0]) * (p->r[i]-axisrz[0])
+                                      + (z0-axisrz[1]) * (p->z[i]-axisrz[1]) );
+            }
+
+            if(!errflag) {
+                endcond_check_fo_particle(p, p0, h, cputime, sim, i);
+            }
+
+            if(errflag) {
+                p->err[i] = errflag;
+                p->running[i] = 0;
+            }
+        }
+    }
+}
+
 
 /**
  * @brief Integrate a full orbit step with VPA and MHd modes present.
@@ -246,6 +427,11 @@ void step_fo_vpa_mhd(
 
     int i;
     /* Following loop will be executed simultaneously for all i */
+#if defined(GPU) && defined(_OPENACC)
+    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:NSIMD], \
+                                      Bdata[0:1], Edata[0:1], \
+                                      boozer[0:1], mhd[0:1])
+#endif
     #pragma omp simd  aligned(h : 64)
     for(i = 0; i < NSIMD; i++) {
         particle_copy_fo(p, i, p0, i);
@@ -418,6 +604,201 @@ void step_fo_vpa_mhd(
             }
 
             /* Error handling */
+            if(errflag) {
+                p->err[i] = errflag;
+                p->running[i] = 0;
+            }
+        }
+    }
+}
+
+void step_fo_vpa_mhd_endcond(
+    particle_simd_fo* p, particle_simd_fo* p0, real* h,
+    B_field_data* Bdata, E_field_data* Edata,
+    boozer_data* boozer, mhd_data* mhd, sim_data* sim, real cputime,
+    int aldforce, int reverse_time) {
+
+    int i;
+#if defined(GPU) && defined(_OPENACC)
+    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:NSIMD], \
+                                      Bdata[0:1], Edata[0:1], \
+                                      boozer[0:1], mhd[0:1], sim[0:1])
+#endif
+    #pragma omp simd  aligned(h : 64)
+    for(i = 0; i < NSIMD; i++) {
+        particle_copy_fo(p, i, p0, i);
+        if(p->running[i]) {
+            a5err errflag = 0;
+            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
+
+            real R0   = p->r[i];
+            real z0   = p->z[i];
+            real t0   = p->time[i];
+            real mass = p->mass[i];
+
+            /* Convert velocity to cartesian coordinates */
+            real prpz[3] = {p->p_r[i], p->p_phi[i], p->p_z[i]};
+            real pxyz[3];
+            math_vec_rpz2xyz(prpz, pxyz, p->phi[i]);
+
+            real posrpz[3] = {p->r[i], p->phi[i], p->z[i]};
+            real posxyz0[3],posxyz[3];
+            math_rpz2xyz(posrpz,posxyz0);
+
+            /* Take a half step and evaluate fields at that position */
+            real gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
+            posxyz[0] = posxyz0[0] + pxyz[0] * dt / (2 * gamma * mass);
+            posxyz[1] = posxyz0[1] + pxyz[1] * dt / (2 * gamma * mass);
+            posxyz[2] = posxyz0[2] + pxyz[2] * dt / (2 * gamma * mass);
+
+            math_xyz2rpz(posxyz,posrpz);
+
+            real Brpz[3];
+            real Erpz[3];
+            if(!errflag) {
+                errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
+                                         t0 + dt/2, Bdata);
+            }
+            if(!errflag) {
+                errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
+                                         t0 + dt/2, Edata, Bdata);
+            }
+
+            real pert[7];
+            int pertonly = 0;
+            if(!errflag) {
+                errflag = mhd_perturbations(
+                    pert, posrpz[0], posrpz[1], posrpz[2], t0 + dt/2,
+                    pertonly, MHD_INCLUDE_ALL, boozer, mhd, Bdata);
+            }
+            Brpz[0] = pert[0];
+            Brpz[1] = pert[1];
+            Brpz[2] = pert[2];
+            Erpz[0] += pert[3];
+            Erpz[1] += pert[4];
+            Erpz[2] += pert[5];
+
+            real fposxyz[3];
+
+            if(!errflag) {
+                /* Electromagnetic fields to cartesian coordinates */
+                real Bxyz[3];
+                real Exyz[3];
+
+                math_vec_rpz2xyz(Brpz, Bxyz, posrpz[1]);
+                math_vec_rpz2xyz(Erpz, Exyz, posrpz[1]);
+
+                /* Evaluate helper variable pminus */
+                real pminus[3];
+                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
+                pminus[0] = pxyz[0] / (mass * CONST_C) + sigma * Exyz[0];
+                pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
+                pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
+
+                /* Second helper variable pplus using Boris cross-product form
+                 * equivalent to matrix formulation but cheaper on GPU. */
+                real d = (p->charge[i]*dt/(2*p->mass[i])) /
+                    sqrt( 1 + math_dot(pminus,pminus) );
+                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
+                real t2 = math_dot(tvec, tvec);
+                real svec[3] = {
+                    2.0*tvec[0]/(1.0+t2),
+                    2.0*tvec[1]/(1.0+t2),
+                    2.0*tvec[2]/(1.0+t2)};
+
+                real pprime[3];
+                real ctmp[3];
+                math_cross(pminus, tvec, ctmp);
+                pprime[0] = pminus[0] + ctmp[0];
+                pprime[1] = pminus[1] + ctmp[1];
+                pprime[2] = pminus[2] + ctmp[2];
+
+                real pplus[3];
+                math_cross(pprime, svec, ctmp);
+                pplus[0] = ctmp[0];
+                pplus[1] = ctmp[1];
+                pplus[2] = ctmp[2];
+
+                /* Take the step */
+                real pfinal[3];
+                pfinal[0] = pminus[0] + pplus[0] + sigma*Exyz[0];
+                pfinal[1] = pminus[1] + pplus[1] + sigma*Exyz[1];
+                pfinal[2] = pminus[2] + pplus[2] + sigma*Exyz[2];
+
+                pxyz[0] = pfinal[0] * mass * CONST_C;
+                pxyz[1] = pfinal[1] * mass * CONST_C;
+                pxyz[2] = pfinal[2] * mass * CONST_C;
+            }
+
+            gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
+            fposxyz[0] = posxyz[0] + dt * pxyz[0] / (2 * gamma * mass);
+            fposxyz[1] = posxyz[1] + dt * pxyz[1] / (2 * gamma * mass);
+            fposxyz[2] = posxyz[2] + dt * pxyz[2] / (2 * gamma * mass);
+
+            if(!errflag) {
+                /* Back to cylindrical coordinates */
+                p->r[i] = sqrt(fposxyz[0]*fposxyz[0]+fposxyz[1]*fposxyz[1]);
+
+                /* phi is evaluated like this to make sure it is cumulative */
+                p->phi[i] += atan2(
+                    posxyz0[0] * fposxyz[1] - posxyz0[1] * fposxyz[0],
+                    posxyz0[0] * fposxyz[0] + posxyz0[1] * fposxyz[1] );
+                p->z[i] = fposxyz[2];
+
+                real cosp = cos(p->phi[i]);
+                real sinp = sin(p->phi[i]);
+                p->p_r[i]   =  pxyz[0] * cosp + pxyz[1] * sinp;
+                p->p_phi[i] = -pxyz[0] * sinp + pxyz[1] * cosp;
+                p->p_z[i]   =  pxyz[2];
+            }
+
+            /* Evaluate magnetic field (and gradient) and rho at new position */
+            real BdBrpz[15];
+            real psi[1];
+            real rho[2];
+            if(!errflag) {
+                errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
+                                            t0 + dt, Bdata);
+            }
+            if(!errflag) {
+                errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
+                                           t0 + dt, Bdata);
+            }
+            if(!errflag) {
+                errflag = B_field_eval_rho(rho, psi[0], Bdata);
+            }
+
+            if(!errflag) {
+                p->B_r[i]        = BdBrpz[0];
+                p->B_r_dr[i]     = BdBrpz[1];
+                p->B_r_dphi[i]   = BdBrpz[2];
+                p->B_r_dz[i]     = BdBrpz[3];
+
+                p->B_phi[i]      = BdBrpz[4];
+                p->B_phi_dr[i]   = BdBrpz[5];
+                p->B_phi_dphi[i] = BdBrpz[6];
+                p->B_phi_dz[i]   = BdBrpz[7];
+
+                p->B_z[i]        = BdBrpz[8];
+                p->B_z_dr[i]     = BdBrpz[9];
+                p->B_z_dphi[i]   = BdBrpz[10];
+                p->B_z_dz[i]     = BdBrpz[11];
+
+                p->rho[i] = rho[0];
+
+                /* Evaluate phi and theta angles so that they are cumulative */
+                real axisrz[2];
+                errflag = B_field_get_axis_rz(axisrz, Bdata, p->phi[i]);
+                p->theta[i] += atan2(   (R0-axisrz[0]) * (p->z[i]-axisrz[1])
+                                      - (z0-axisrz[1]) * (p->r[i]-axisrz[0]),
+                                        (R0-axisrz[0]) * (p->r[i]-axisrz[0])
+                                      + (z0-axisrz[1]) * (p->z[i]-axisrz[1]) );
+            }
+
+            if(!errflag) {
+                endcond_check_fo_particle(p, p0, h, cputime, sim, i);
+            }
+
             if(errflag) {
                 p->err[i] = errflag;
                 p->running[i] = 0;

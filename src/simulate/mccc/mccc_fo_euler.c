@@ -32,8 +32,14 @@ void mccc_fo_euler(particle_simd_fo* p, real* h, plasma_data* pdata,
     const real* qb = plasma_get_species_charge(pdata);
     const real* mb = plasma_get_species_mass(pdata);
 
+#if defined(GPU) && defined(_OPENACC)
+    #pragma acc parallel loop present(p[0:1], h[0:p->n_mrk], \
+                                      rnd[0:3*p->n_mrk], pdata[0:1], \
+                                      mdata[0:1])
+#else
     GPU_DATA_IS_MAPPED(h[0:p->n_mrk], rnd[0:3*p->n_mrk])
     GPU_PARALLEL_LOOP_ALL_LEVELS
+#endif
     for(int i = 0; i < p->n_mrk; i++) {
         if(p->running[i]) {
             a5err errflag = 0;

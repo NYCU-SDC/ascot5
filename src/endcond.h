@@ -35,6 +35,9 @@ void endcond_check_gc(particle_simd_gc* p_f, particle_simd_gc* p_i,
                       sim_data* sim);
 void endcond_check_fo(particle_simd_fo* p_f, particle_simd_fo* p_i,
                       real* h, real cputime, sim_data* sim);
+DECLARE_TARGET_SIMD_UNIFORM(p_f, p_i, h, sim)
+void endcond_check_fo_particle(particle_simd_fo* p_f, particle_simd_fo* p_i,
+                               real* h, real cputime, sim_data* sim, int i);
 void endcond_check_ml(particle_simd_ml* p_f, particle_simd_ml* p_i,
                       sim_data* sim);
 
