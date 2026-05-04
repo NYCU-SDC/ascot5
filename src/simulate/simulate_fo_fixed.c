@@ -99,11 +99,8 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
     real* rnd = (real*) malloc(3*mrk_array_size*sizeof(real));
     GPU_MAP_TO_DEVICE(hin[0:mrk_array_size], rnd[0:3*mrk_array_size])
 
-#if defined(GPU) && defined(_OPENACC)
-    /* Keep the long-lived simulation state resident across the full step loop. */
-    #pragma acc data present(hin[0:mrk_array_size], rnd[0:3*mrk_array_size], p[0:1], p0[0:1])
+    GPU_DATA_IS_MAPPED(hin[0:mrk_array_size], rnd[0:3*mrk_array_size], p[0:1], p0[0:1])
     {
-#endif
     while(n_running > 0) {
         /*************************** Physics **********************************/
 
@@ -230,9 +227,7 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
         }
 #endif
     }
-#if defined(GPU) && defined(_OPENACC)
     }
-#endif
     /* All markers simulated! */
 #ifdef GPU
     GPU_MAP_FROM_DEVICE(sim[0:1])
