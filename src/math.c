@@ -424,9 +424,6 @@ real* math_rsearch(const real key, const real* base, int num) {
  * @param zv array of z points for the polygon
  * @param n number of points in the polygon
  */
-#if defined(GPU) && defined(_OPENACC)
-#pragma acc routine seq
-#endif
 int math_point_in_polygon(real r, real z, real* rv, real* zv, int n) {
     int hits = 0;
 

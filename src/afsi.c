@@ -169,8 +169,8 @@ void afsi_run(sim_data* sim, afsi_data* afsi, int n,
                     size_t ip2 = math_bin_index(
                         prod1_p2[i], prod1->axes[p2coord].n,
                         prod1->axes[p2coord].min, prod1->axes[p2coord].max);
-                          if(ip1 < prod1->axes[p1coord].n &&
-                              ip2 < prod1->axes[p2coord].n) {
+                    if(ip1 < prod1->axes[p1coord].n &&
+                        ip2 < prod1->axes[p2coord].n) {
                         size_t index =    i0*prod1->strides[i0coord]
                                         + i1*prod1->strides[i1coord]
                                         + i2*prod1->strides[i2coord]
@@ -185,8 +185,8 @@ void afsi_run(sim_data* sim, afsi_data* afsi, int n,
                     ip2 = math_bin_index(
                         prod2_p2[i], prod2->axes[p2coord].n,
                         prod2->axes[p2coord].min, prod2->axes[p2coord].max);
-                          if(ip1 < prod2->axes[p1coord].n &&
-                              ip2 < prod2->axes[p2coord].n) {
+                    if(ip1 < prod2->axes[p1coord].n &&
+                        ip2 < prod2->axes[p2coord].n) {
                         size_t index =    i0*prod2->strides[i0coord]
                                         + i1*prod2->strides[i1coord]
                                         + i2*prod2->strides[i2coord]

@@ -1,0 +1,2981 @@
+diff --git a/pgo-data/69ec6008_1100888.dyn b/pgo-data/69ec6008_1100888.dyn
+new file mode 100644
+index 000000000..84f685fe3
+Binary files /dev/null and b/pgo-data/69ec6008_1100888.dyn differ
+diff --git a/pgo-data/69ec6008_1100889.dyn b/pgo-data/69ec6008_1100889.dyn
+new file mode 100644
+index 000000000..70f4eebef
+Binary files /dev/null and b/pgo-data/69ec6008_1100889.dyn differ
+diff --git a/pgo-data/69ec6008_1445824.dyn b/pgo-data/69ec6008_1445824.dyn
+new file mode 100644
+index 000000000..2dc9d4af0
+Binary files /dev/null and b/pgo-data/69ec6008_1445824.dyn differ
+diff --git a/pgo-data/69ec6008_1445825.dyn b/pgo-data/69ec6008_1445825.dyn
+new file mode 100644
+index 000000000..acb827a30
+Binary files /dev/null and b/pgo-data/69ec6008_1445825.dyn differ
+diff --git a/pgo-data/69ec6008_1732627.dyn b/pgo-data/69ec6008_1732627.dyn
+new file mode 100644
+index 000000000..aec92ed44
+Binary files /dev/null and b/pgo-data/69ec6008_1732627.dyn differ
+diff --git a/pgo-data/69ec6008_1732628.dyn b/pgo-data/69ec6008_1732628.dyn
+new file mode 100644
+index 000000000..fbd2206e7
+Binary files /dev/null and b/pgo-data/69ec6008_1732628.dyn differ
+diff --git a/pgo-data/69ec6008_2618804.dyn b/pgo-data/69ec6008_2618804.dyn
+new file mode 100644
+index 000000000..bfce007b5
+Binary files /dev/null and b/pgo-data/69ec6008_2618804.dyn differ
+diff --git a/pgo-data/69ec6008_2618805.dyn b/pgo-data/69ec6008_2618805.dyn
+new file mode 100644
+index 000000000..720d0a2d5
+Binary files /dev/null and b/pgo-data/69ec6008_2618805.dyn differ
+diff --git a/pgo-data/pgopti.dpi b/pgo-data/pgopti.dpi
+new file mode 100644
+index 000000000..1e4341c9b
+Binary files /dev/null and b/pgo-data/pgopti.dpi differ
+diff --git a/pgo-data/pgopti.dpi.lock b/pgo-data/pgopti.dpi.lock
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/pgo-data/pgopti.spi b/pgo-data/pgopti.spi
+new file mode 100644
+index 000000000..158573b88
+Binary files /dev/null and b/pgo-data/pgopti.spi differ
+diff --git a/pgo-data/pgopti.spl b/pgo-data/pgopti.spl
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/src/Bfield/B_3DS.c b/src/Bfield/B_3DS.c
+index 810d39536..45337c8c9 100644
+--- a/src/Bfield/B_3DS.c
++++ b/src/Bfield/B_3DS.c
+@@ -318,9 +318,8 @@ a5err B_3DS_eval_B(real B[3], real r, real phi, real z, B_3DS_data* Bdata) {
+     a5err err = 0;
+     int interperr = 0;
+ 
+-    interperr += interp3Dcomp_eval_f(&B[0], &Bdata->B_r, r, phi, z);
+-    interperr += interp3Dcomp_eval_f(&B[1], &Bdata->B_phi, r, phi, z);
+-    interperr += interp3Dcomp_eval_f(&B[2], &Bdata->B_z, r, phi, z);
++    interperr += interp3Dcomp_eval_f3(
++        B, &Bdata->B_r, &Bdata->B_phi, &Bdata->B_z, r, phi, z);
+ 
+     /* Test for B field interpolation error */
+     if(interperr) {
+@@ -365,25 +364,10 @@ a5err B_3DS_eval_B_dB(real B_dB[12], real r, real phi, real z,
+                       B_3DS_data* Bdata) {
+     a5err err = 0;
+     int interperr = 0; /* If error happened during interpolation */
+-    real B_dB_temp[10];
+-
+-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_r, r, phi, z);
+-    B_dB[0] = B_dB_temp[0];
+-    B_dB[1] = B_dB_temp[1];
+-    B_dB[2] = B_dB_temp[2];
+-    B_dB[3] = B_dB_temp[3];
+-
+-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_phi, r, phi, z);
+-    B_dB[4] = B_dB_temp[0];
+-    B_dB[5] = B_dB_temp[1];
+-    B_dB[6] = B_dB_temp[2];
+-    B_dB[7] = B_dB_temp[3];
+-
+-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_z, r, phi, z);
+-    B_dB[8] = B_dB_temp[0];
+-    B_dB[9] = B_dB_temp[1];
+-    B_dB[10] = B_dB_temp[2];
+-    B_dB[11] = B_dB_temp[3];
++
++    interperr += interp3Dcomp_eval_df4_3(&B_dB[0], &B_dB[4], &B_dB[8],
++                                         &Bdata->B_r, &Bdata->B_phi, &Bdata->B_z,
++                                         r, phi, z);
+ 
+     /* Test for B field interpolation error */
+     if(interperr) {
+@@ -392,14 +376,16 @@ a5err B_3DS_eval_B_dB(real B_dB[12], real r, real phi, real z,
+ 
+     if(!err) {
+         real psi_dpsi[6];
++        real inv_r = 1.0 / r;
++        real inv_r2 = inv_r * inv_r;
+         interperr += interp2Dcomp_eval_df(psi_dpsi, &Bdata->psi, r, z);
+ 
+-        B_dB[0] = B_dB[0] - psi_dpsi[2]/r;
+-        B_dB[1] = B_dB[1] + psi_dpsi[2]/(r*r)-psi_dpsi[5]/r;
+-        B_dB[3] = B_dB[3] - psi_dpsi[4]/r;
+-        B_dB[8] = B_dB[8] + psi_dpsi[1]/r;
+-        B_dB[9] = B_dB[9] - psi_dpsi[1]/(r*r) + psi_dpsi[3]/r;
+-        B_dB[11] = B_dB[11] + psi_dpsi[5]/r;
++        B_dB[0] = B_dB[0] - psi_dpsi[2] * inv_r;
++        B_dB[1] = B_dB[1] + psi_dpsi[2] * inv_r2 - psi_dpsi[5] * inv_r;
++        B_dB[3] = B_dB[3] - psi_dpsi[4] * inv_r;
++        B_dB[8] = B_dB[8] + psi_dpsi[1] * inv_r;
++        B_dB[9] = B_dB[9] - psi_dpsi[1] * inv_r2 + psi_dpsi[3] * inv_r;
++        B_dB[11] = B_dB[11] + psi_dpsi[5] * inv_r;
+ 
+         /* Test for psi interpolation error */
+         if(interperr) {
+diff --git a/src/Bfield/B_STS.c b/src/Bfield/B_STS.c
+index 2c9d57b2b..7a8465ddf 100644
+--- a/src/Bfield/B_STS.c
++++ b/src/Bfield/B_STS.c
+@@ -101,7 +101,7 @@ int B_STS_init(B_STS_data* data,
+         print_err("Error: Failed to initialize splines.\n");
+         return 1;
+     }
+-    interp3Dcomp_setup(
++    err = interp3Dcomp_setup(
+         &data->B_r, B_r, b_n_r, b_n_phi, b_n_z,
+         NATURALBC, PERIODICBC, NATURALBC,
+         b_r_min, b_r_max, b_phi_min, b_phi_max, b_z_min, b_z_max);
+@@ -109,7 +109,7 @@ int B_STS_init(B_STS_data* data,
+         print_err("Error: Failed to initialize splines.\n");
+         return 1;
+     }
+-    interp3Dcomp_setup(
++    err = interp3Dcomp_setup(
+         &data->B_phi, B_phi, b_n_r, b_n_phi, b_n_z,
+         NATURALBC, PERIODICBC, NATURALBC,
+         b_r_min, b_r_max, b_phi_min, b_phi_max, b_z_min, b_z_max);
+@@ -117,7 +117,7 @@ int B_STS_init(B_STS_data* data,
+         print_err("Error: Failed to initialize splines.\n");
+         return 1;
+     }
+-    interp3Dcomp_setup(
++    err = interp3Dcomp_setup(
+         &data->B_z, B_z, b_n_r, b_n_phi, b_n_z,
+         NATURALBC, PERIODICBC, NATURALBC,
+         b_r_min, b_r_max, b_phi_min, b_phi_max, b_z_min, b_z_max);
+@@ -245,9 +245,9 @@ a5err B_STS_eval_psi_dpsi(real psi_dpsi[4], real r, real phi, real z,
+                           B_STS_data* Bdata) {
+     a5err err = 0;
+     int interperr = 0; /* If error happened during interpolation */
+-    real psi_dpsi_temp[10];
++    real psi_dpsi_temp[4];
+ 
+-    interperr += interp3Dcomp_eval_df(psi_dpsi_temp, &Bdata->psi, r, phi, z);
++    interperr += interp3Dcomp_eval_df4(psi_dpsi_temp, &Bdata->psi, r, phi, z);
+ 
+ 
+     psi_dpsi[0] = psi_dpsi_temp[0];
+@@ -334,11 +334,8 @@ a5err B_STS_eval_rho_drho(real rho_drho[4], real r, real phi, real z,
+  */
+ a5err B_STS_eval_B(real B[3], real r, real phi, real z, B_STS_data* Bdata) {
+     a5err err = 0;
+-    int interperr = 0; /* If error happened during interpolation */
+-
+-    interperr += interp3Dcomp_eval_f(&B[0], &Bdata->B_r, r, phi, z);
+-    interperr += interp3Dcomp_eval_f(&B[1], &Bdata->B_phi, r, phi, z);
+-    interperr += interp3Dcomp_eval_f(&B[2], &Bdata->B_z, r, phi, z);
++    int interperr = interp3Dcomp_eval_f3(
++        B, &Bdata->B_r, &Bdata->B_phi, &Bdata->B_z, r, phi, z);
+ 
+     /* Test for B field interpolation error */
+     if(interperr) {
+@@ -371,28 +368,10 @@ a5err B_STS_eval_B_dB(real B_dB[12], real r, real phi, real z,
+                       B_STS_data* Bdata) {
+     a5err err = 0;
+     int interperr = 0; /* If error happened during interpolation */
+-    real B_dB_temp[10];
+-
+-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_r, r, phi, z);
+-
+-    B_dB[0] = B_dB_temp[0];
+-    B_dB[1] = B_dB_temp[1];
+-    B_dB[2] = B_dB_temp[2];
+-    B_dB[3] = B_dB_temp[3];
+-
+-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_phi, r, phi, z);
+-
+-    B_dB[4] = B_dB_temp[0];
+-    B_dB[5] = B_dB_temp[1];
+-    B_dB[6] = B_dB_temp[2];
+-    B_dB[7] = B_dB_temp[3];
+-
+-    interperr += interp3Dcomp_eval_df(B_dB_temp, &Bdata->B_z, r, phi, z);
+ 
+-    B_dB[8] = B_dB_temp[0];
+-    B_dB[9] = B_dB_temp[1];
+-    B_dB[10] = B_dB_temp[2];
+-    B_dB[11] = B_dB_temp[3];
++    interperr += interp3Dcomp_eval_df4_3(&B_dB[0], &B_dB[4], &B_dB[8],
++                                         &Bdata->B_r, &Bdata->B_phi, &Bdata->B_z,
++                                         r, phi, z);
+ 
+     /* Test for B field interpolation error */
+     if(interperr) {
+diff --git a/src/Makefile b/src/Makefile
+index fc991b3b9..9c1f212ef 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -72,7 +72,8 @@ CFLAGS+=-Wall -fPIC -std=c11 -D_XOPEN_SOURCE=700 $(DEFINES) $(FLAGS)
+ ifeq ($(DEBUG),1)
+ 	CFLAGS+=-g -fsanitize=address,undefined
+ else
+-	CFLAGS+=-O2
++	# Default remains O2; OPTFLAGS lets job scripts append overrides like -O3.
++	CFLAGS+=-O2 $(OPTFLAGS)
+ endif
+ 
+ ifeq ($(CC), $(filter $(CC), h5cc h5pcc))
+diff --git a/src/afsi.c b/src/afsi.c
+index 77bbe4bf5..93fe50203 100644
+--- a/src/afsi.c
++++ b/src/afsi.c
+@@ -169,8 +169,8 @@ void afsi_run(sim_data* sim, afsi_data* afsi, int n,
+                     size_t ip2 = math_bin_index(
+                         prod1_p2[i], prod1->axes[p2coord].n,
+                         prod1->axes[p2coord].min, prod1->axes[p2coord].max);
+-                    if( 0 <= ip1 && ip1 < prod1->axes[p1coord].n &&
+-                        0 <= ip2 && ip2 < prod1->axes[p2coord].n) {
++                          if(ip1 < prod1->axes[p1coord].n &&
++                              ip2 < prod1->axes[p2coord].n) {
+                         size_t index =    i0*prod1->strides[i0coord]
+                                         + i1*prod1->strides[i1coord]
+                                         + i2*prod1->strides[i2coord]
+@@ -185,8 +185,8 @@ void afsi_run(sim_data* sim, afsi_data* afsi, int n,
+                     ip2 = math_bin_index(
+                         prod2_p2[i], prod2->axes[p2coord].n,
+                         prod2->axes[p2coord].min, prod2->axes[p2coord].max);
+-                    if( 0 <= ip1 && ip1 < prod2->axes[p1coord].n &&
+-                        0 <= ip2 && ip2 < prod2->axes[p2coord].n) {
++                          if(ip1 < prod2->axes[p1coord].n &&
++                              ip2 < prod2->axes[p2coord].n) {
+                         size_t index =    i0*prod2->strides[i0coord]
+                                         + i1*prod2->strides[i1coord]
+                                         + i2*prod2->strides[i2coord]
+diff --git a/src/boozer.c b/src/boozer.c
+index dfd208542..8a7252640 100644
+--- a/src/boozer.c
++++ b/src/boozer.c
+@@ -121,6 +121,9 @@ void boozer_offload(boozer_data* data) {
+  *
+  * @return zero on success
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err boozer_eval_psithetazeta(real psithetazeta[12], int* isinside,
+                                real r, real phi, real z, B_field_data* Bdata,
+                                boozer_data* boozerdata) {
+diff --git a/src/diag/diag_orb.c b/src/diag/diag_orb.c
+index 3ea79b0a0..4004d50f4 100644
+--- a/src/diag/diag_orb.c
++++ b/src/diag/diag_orb.c
+@@ -254,7 +254,7 @@ void diag_orb_update_fo(diag_orb_data* data, particle_simd_fo* p_f,
+                    if marker has met some end condition. */
+                 real dt = data->mrk_recorded[imrk] + data->writeInterval
+                     - p_f->mileage[i];
+-                if( dt <= 0 || p_f->endcond[i] > 0 ) {
++                if( dt <= 0 || (p_f->endcond[i] > 0 && p_i->running[i]) ) {
+                     idx = imrk * data->Npnt + ipoint;
+ 
+                     data->id[idx]     = (real)p_f->id[i];
+@@ -459,7 +459,7 @@ void diag_orb_update_gc(diag_orb_data* data, particle_simd_gc* p_f,
+                 real dt = data->mrk_recorded[imrk] + data->writeInterval
+                     - p_f->mileage[i];
+ 
+-                if( dt <= 0 || p_f->endcond[i] > 0 ) {
++                if( dt <= 0 || (p_f->endcond[i] > 0 && p_i->running[i]) ) {
+                                     idx = imrk * data->Npnt + ipoint;
+ 
+                     data->id[idx]     = (real)p_f->id[i];
+@@ -661,7 +661,7 @@ void diag_orb_update_ml(diag_orb_data* data, particle_simd_ml* p_f,
+                    if marker has met some end condition. */
+                 real dt = data->mrk_recorded[imrk] + data->writeInterval
+                     - p_f->mileage[i];
+-                if( dt <= 0 || p_f->endcond[i] > 0 ) {
++                if( dt <= 0 || (p_f->endcond[i] > 0 && p_i->running[i]) ) {
+                     idx = imrk * data->Npnt + ipoint;
+                     data->id[idx]      = (real)p_f->id[i];
+                     data->mileage[idx] = p_f->mileage[i];
+diff --git a/src/diag/hist.c b/src/diag/hist.c
+index f6bd14d7c..022f23678 100644
+--- a/src/diag/hist.c
++++ b/src/diag/hist.c
+@@ -113,7 +113,6 @@ void hist_update_fo(histogram* hist, particle_simd_fo* p_f,
+                   - ppar * ppar);
+ 
+         axis = &hist->axes[15];
+-        size_t nq = axis->n;
+         size_t i15 = 0;
+ 
+         axis = &hist->axes[14];
+@@ -121,19 +120,15 @@ void hist_update_fo(histogram* hist, particle_simd_fo* p_f,
+             p_f->time[i], axis->n, axis->min, axis->max);
+ 
+         axis = &hist->axes[13];
+-        size_t nptor = axis->n;
+         size_t i13 = 0;
+ 
+         axis = &hist->axes[12];
+-        size_t nmu = axis->n;
+         size_t i12 = 0;
+ 
+         axis = &hist->axes[11];
+-        size_t nxi = axis->n;
+         size_t i11 = 0;
+ 
+         axis = &hist->axes[10];
+-        size_t nekin = axis->n;
+         size_t i10 = 0;
+ 
+         axis = &hist->axes[9];
+@@ -175,7 +170,7 @@ void hist_update_fo(histogram* hist, particle_simd_fo* p_f,
+              + i15;
+         weight = p_f->weight[i];
+         GPU_ATOMIC
+-        hist->bins[index] += p_f->weight[i];
++        hist->bins[index] += weight;
+ #else
+         size_t* n = hist->strides;
+         index[i] = i0*n[0]  + i1*n[1]   + i2*n[2]   + i3*n[3]   + i4*n[4]
+diff --git a/src/endcond.c b/src/endcond.c
+index 3830bb166..eaf92dc14 100644
+--- a/src/endcond.c
++++ b/src/endcond.c
+@@ -71,179 +71,198 @@
+  * @param sim pointer to simulation data struct
+  */
+ void endcond_check_fo(particle_simd_fo* p_f, particle_simd_fo* p_i,
+-                      sim_data* sim) {
+-
+-    /* Note which end conditions are set as active.
+-       Only these ones are checked */
+-    int active_tlim      = sim->endcond_active & endcond_tlim;
+-    int active_wall      = sim->endcond_active & endcond_wall;
+-    int active_emin      = sim->endcond_active & endcond_emin;
+-    int active_therm     = sim->endcond_active & endcond_therm;
+-    int active_rhomax    = sim->endcond_active & endcond_rhomax;
+-    int active_rhomin    = sim->endcond_active & endcond_rhomin;
+-    int active_polmax    = sim->endcond_active & endcond_polmax;
+-    int active_tormax    = sim->endcond_active & endcond_tormax;
+-    int active_cpumax    = sim->endcond_active & endcond_cpumax;
+-    int active_neutr     = sim->endcond_active & endcond_neutr;
+-    int active_ioniz     = sim->endcond_active & endcond_ioniz;
++                      real* h, real cputime, sim_data* sim) {
+ 
++#if defined(GPU) && defined(_OPENACC)
++    #pragma acc parallel loop present(p_f[0:1], p_i[0:1], h[0:p_f->n_mrk], \
++                                      sim[0:1])
++#else
++    GPU_DATA_IS_MAPPED(h[0:p_f->n_mrk])
+     GPU_PARALLEL_LOOP_ALL_LEVELS
++#endif
+     for(int i = 0; i < p_f->n_mrk; i++) {
+-        if(p_f->running[i]) {
++        endcond_check_fo_particle(p_f, p_i, h, cputime, sim, i);
++    }
++}
+ 
+-            /* Update bounces if pitch changed sign */
+-            if( (p_i->p_r[i]*p_i->B_r[i] + p_i->p_phi[i]*p_i->B_phi[i]
+-                 + p_i->p_z[i]*p_i->B_z[i])
+-                * (p_f->p_r[i]*p_f->B_r[i] + p_f->p_phi[i]*p_f->B_phi[i]
+-                   + p_f->p_z[i]*p_f->B_z[i]) < 0 ) {
+-                if(p_f->bounces[i] > 0) {
+-                    /* Half bounce */
+-                    p_f->bounces[i] *= -1;
+-                }
+-                else if(p_f->bounces[i] < 0) {
+-                    /* Bounce complete */
+-                    p_f->bounces[i] *= -1;
+-                    p_f->bounces[i] +=  1;
+-                }
+-                else {
+-                    /* Initial bounce */
+-                    p_f->bounces[i] +=  1;
+-                }
++/**
++ * @brief Check end conditions for a single FO marker.
++ */
++DECLARE_TARGET_SIMD_UNIFORM(p_f, p_i, h, sim)
++void endcond_check_fo_particle(particle_simd_fo* p_f, particle_simd_fo* p_i,
++                               real* h, real cputime, sim_data* sim, int i) {
++    if(p_f->running[i]) {
++        /* Note which end conditions are set as active.
++           Only these ones are checked */
++        int active_tlim      = sim->endcond_active & endcond_tlim;
++        int active_wall      = sim->endcond_active & endcond_wall;
++        int active_emin      = sim->endcond_active & endcond_emin;
++        int active_therm     = sim->endcond_active & endcond_therm;
++        int active_rhomax    = sim->endcond_active & endcond_rhomax;
++        int active_rhomin    = sim->endcond_active & endcond_rhomin;
++        int active_polmax    = sim->endcond_active & endcond_polmax;
++        int active_tormax    = sim->endcond_active & endcond_tormax;
++        int active_cpumax    = sim->endcond_active & endcond_cpumax;
++        int active_neutr     = sim->endcond_active & endcond_neutr;
++        int active_ioniz     = sim->endcond_active & endcond_ioniz;
++
++        /* Advance simulation/wall-clock time before evaluating endconds. */
++        p_f->time[i]    += ( 1.0 - 2.0 * ( sim->reverse_time > 0 ) ) * h[i];
++        p_f->mileage[i] += h[i];
++        p_f->cputime[i] += cputime;
++
++        /* Update bounces if pitch changed sign */
++        if( (p_i->p_r[i]*p_i->B_r[i] + p_i->p_phi[i]*p_i->B_phi[i]
++             + p_i->p_z[i]*p_i->B_z[i])
++            * (p_f->p_r[i]*p_f->B_r[i] + p_f->p_phi[i]*p_f->B_phi[i]
++               + p_f->p_z[i]*p_f->B_z[i]) < 0 ) {
++            if(p_f->bounces[i] > 0) {
++                /* Half bounce */
++                p_f->bounces[i] *= -1;
++            }
++            else if(p_f->bounces[i] < 0) {
++                /* Bounce complete */
++                p_f->bounces[i] *= -1;
++                p_f->bounces[i] +=  1;
++            }
++            else {
++                /* Initial bounce */
++                p_f->bounces[i] +=  1;
+             }
++        }
+ 
+-            /* Check if the marker time exceeds simulation time */
+-            if(active_tlim) {
+-                if(!sim->reverse_time && p_f->time[i] > sim->endcond_lim_simtime) {
+-                    p_f->endcond[i] |= endcond_tlim;
+-                    p_f->running[i] = 0;
+-                }
+-                if(sim->reverse_time && p_f->time[i] < sim->endcond_lim_simtime) {
+-                    p_f->endcond[i] |= endcond_tlim;
+-                    p_f->running[i] = 0;
+-                }
+-                if(p_f->mileage[i] > sim->endcond_max_mileage) {
+-                    p_f->endcond[i] |= endcond_tlim;
+-                    p_f->running[i] = 0;
+-                }
++        /* Check if the marker time exceeds simulation time */
++        if(active_tlim) {
++            if(!sim->reverse_time && p_f->time[i] > sim->endcond_lim_simtime) {
++                p_f->endcond[i] |= endcond_tlim;
++                p_f->running[i] = 0;
+             }
+-
+-            /* Check, using the wall collision module, whether marker hit wall
+-             * during this time-step. Store the wall element ID if it did. */
+-            if(active_wall) {
+-                real w_coll = 0;
+-                int tile = wall_hit_wall(
+-                    p_i->r[i], p_i->phi[i], p_i->z[i],
+-                    p_f->r[i], p_f->phi[i], p_f->z[i], &sim->wall_data, &w_coll);
+-                if(tile > 0) {
+-                    real w = w_coll;
+-                    p_f->time[i] = p_i->time[i] + w*(p_f->time[i] - p_i->time[i]);
+-                    p_f->r[i]    = p_i->r[i]    + w*(p_f->r[i] - p_i->r[i]);
+-                    p_f->phi[i]  = p_i->phi[i]  + w*(p_f->phi[i] - p_i->phi[i]);
+-                    p_f->z[i]    = p_i->z[i]    + w*(p_f->z[i] - p_i->z[i]);
+-
+-                    p_f->walltile[i] = tile;
+-                    p_f->endcond[i] |= endcond_wall;
+-                    p_f->running[i] = 0;
+-                }
++            if(sim->reverse_time && p_f->time[i] < sim->endcond_lim_simtime) {
++                p_f->endcond[i] |= endcond_tlim;
++                p_f->running[i] = 0;
+             }
++            if(p_f->mileage[i] > sim->endcond_max_mileage) {
++                p_f->endcond[i] |= endcond_tlim;
++                p_f->running[i] = 0;
++            }
++        }
+ 
+-            /* Evaluate marker energy, and check if it is below the minimum
+-             * energy limit or local thermal energy limit */
+-            if(active_emin || active_therm) {
+-                real pnorm = math_normc(
+-                    p_f->p_r[i], p_f->p_phi[i], p_f->p_z[i]);
+-                real ekin = physlib_Ekin_pnorm(p_f->mass[i], pnorm);
+-
+-                real Ti;
+-                a5err errflag =
+-                    plasma_eval_temp(&Ti, p_f->rho[i], p_f->r[i], p_f->phi[i],
+-                                     p_f->z[i], p_f->time[i], 1,
+-                                     &sim->plasma_data);
++        /* Check, using the wall collision module, whether marker hit wall
++         * during this time-step. Store the wall element ID if it did. */
++        if(active_wall) {
++            real w_coll = 0;
++            int tile = wall_hit_wall(
++                p_i->r[i], p_i->phi[i], p_i->z[i],
++                p_f->r[i], p_f->phi[i], p_f->z[i], &sim->wall_data, &w_coll);
++            if(tile > 0) {
++                real w = w_coll;
++                p_f->time[i] = p_i->time[i] + w*(p_f->time[i] - p_i->time[i]);
++                p_f->r[i]    = p_i->r[i]    + w*(p_f->r[i] - p_i->r[i]);
++                p_f->phi[i]  = p_i->phi[i]  + w*(p_f->phi[i] - p_i->phi[i]);
++                p_f->z[i]    = p_i->z[i]    + w*(p_f->z[i] - p_i->z[i]);
++
++                p_f->walltile[i] = tile;
++                p_f->endcond[i] |= endcond_wall;
++                p_f->running[i] = 0;
++            }
++        }
+ 
+-                /* Error handling */
+-                if(errflag) {
+-                    p_f->err[i]     = errflag;
+-                    p_f->running[i] = 0;
+-                    Ti = 0;
+-                }
++        /* Evaluate marker energy, and check if it is below the minimum
++         * energy limit or local thermal energy limit */
++        if(active_emin || active_therm) {
++            real pnorm = math_normc(
++                p_f->p_r[i], p_f->p_phi[i], p_f->p_z[i]);
++            real ekin = physlib_Ekin_pnorm(p_f->mass[i], pnorm);
++
++            real Ti;
++            a5err errflag =
++                plasma_eval_temp(&Ti, p_f->rho[i], p_f->r[i], p_f->phi[i],
++                                 p_f->z[i], p_f->time[i], 1,
++                                 &sim->plasma_data);
++
++            /* Error handling */
++            if(errflag) {
++                p_f->err[i]     = errflag;
++                p_f->running[i] = 0;
++                Ti = 0;
++            }
+ 
+-                if( active_emin && (ekin < sim->endcond_min_ekin) ) {
+-                    p_f->endcond[i] |= endcond_emin;
+-                    p_f->running[i] = 0;
+-                }
+-                if( active_therm && (ekin < (sim->endcond_min_thermal * Ti)) ) {
+-                    p_f->endcond[i] |= endcond_therm;
+-                    p_f->running[i] = 0;
+-                }
++            if( active_emin && (ekin < sim->endcond_min_ekin) ) {
++                p_f->endcond[i] |= endcond_emin;
++                p_f->running[i] = 0;
++            }
++            if( active_therm && (ekin < (sim->endcond_min_thermal * Ti)) ) {
++                p_f->endcond[i] |= endcond_therm;
++                p_f->running[i] = 0;
+             }
++        }
+ 
+-            /* Check if marker is not within the rho limits */
+-            if(active_rhomax) {
+-                if(p_f->rho[i] > sim->endcond_max_rho) {
+-                    p_f->endcond[i] |= endcond_rhomax;
+-                    p_f->running[i] = 0;
+-                }
++        /* Check if marker is not within the rho limits */
++        if(active_rhomax) {
++            if(p_f->rho[i] > sim->endcond_max_rho) {
++                p_f->endcond[i] |= endcond_rhomax;
++                p_f->running[i] = 0;
+             }
+-            if(active_rhomin) {
+-                if(p_f->rho[i] < sim->endcond_min_rho) {
+-                    p_f->endcond[i] |= endcond_rhomin;
+-                    p_f->running[i] = 0;
+-                }
++        }
++        if(active_rhomin) {
++            if(p_f->rho[i] < sim->endcond_min_rho) {
++                p_f->endcond[i] |= endcond_rhomin;
++                p_f->running[i] = 0;
+             }
++        }
+ 
+-            /* Check if marker exceeds toroidal or poloidal limits */
+-            int maxorb = 0;
+-            if(active_tormax) {
+-                if(fabs(p_f->phi[i]) > sim->endcond_max_tororb) {
+-                    maxorb |= endcond_tormax;
+-                }
++        /* Check if marker exceeds toroidal or poloidal limits */
++        int maxorb = 0;
++        if(active_tormax) {
++            if(fabs(p_f->phi[i]) > sim->endcond_max_tororb) {
++                maxorb |= endcond_tormax;
+             }
+-            if(active_polmax) {
+-                if(fabs(p_f->theta[i]) > sim->endcond_max_polorb) {
+-                    maxorb |= endcond_polmax;
+-                }
+-                else if( p_f->bounces[i] - 1 >=
+-                         (int)(sim->endcond_max_polorb / CONST_2PI )) {
+-                    maxorb |= endcond_polmax;
+-                }
++        }
++        if(active_polmax) {
++            if(fabs(p_f->theta[i]) > sim->endcond_max_polorb) {
++                maxorb |= endcond_polmax;
+             }
+-            if( sim->endcond_torandpol &&
+-                maxorb & endcond_tormax && maxorb & endcond_polmax ) {
+-                p_f->endcond[i] |= maxorb;
+-                p_f->running[i] = 0;
++            else if( p_f->bounces[i] - 1 >=
++                     (int)(sim->endcond_max_polorb / CONST_2PI )) {
++                maxorb |= endcond_polmax;
+             }
+-            else if(!sim->endcond_torandpol && maxorb) {
+-                p_f->endcond[i] |= maxorb;
++        }
++        if( sim->endcond_torandpol &&
++            maxorb & endcond_tormax && maxorb & endcond_polmax ) {
++            p_f->endcond[i] |= maxorb;
++            p_f->running[i] = 0;
++        }
++        else if(!sim->endcond_torandpol && maxorb) {
++            p_f->endcond[i] |= maxorb;
++            p_f->running[i] = 0;
++        }
++        /* Check if the time spent simulating this marker exceeds the
++         * given limit*/
++        if(active_cpumax) {
++            if(p_f->cputime[i] > sim->endcond_max_cputime) {
++                p_f->endcond[i] |= endcond_cpumax;
+                 p_f->running[i] = 0;
+             }
+-            /* Check if the time spent simulating this marker exceeds the
+-             * given limit*/
+-            if(active_cpumax) {
+-                if(p_f->cputime[i] > sim->endcond_max_cputime) {
+-                    p_f->endcond[i] |= endcond_cpumax;
+-                    p_f->running[i] = 0;
+-                }
+-            }
+-            /* Check if the particle has been neutralized */
+-            if(active_neutr) {
+-                if(p_i->charge[i] != 0.0 && p_f->charge[i] == 0.0) {
+-                    p_f->endcond[i] |= endcond_neutr;
+-                    p_f->running[i] = 0;
+-                }
++        }
++        /* Check if the particle has been neutralized */
++        if(active_neutr) {
++            if(p_i->charge[i] != 0.0 && p_f->charge[i] == 0.0) {
++                p_f->endcond[i] |= endcond_neutr;
++                p_f->running[i] = 0;
+             }
++        }
+ 
+-            /* Check if the particle has been ionized */
+-            if(active_ioniz) {
+-                if(p_i->charge[i] == 0.0 && p_f->charge[i] != 0.0) {
+-                    p_f->endcond[i] |= endcond_ioniz;
+-                    p_f->running[i] = 0;
+-                }
++        /* Check if the particle has been ionized */
++        if(active_ioniz) {
++            if(p_i->charge[i] == 0.0 && p_f->charge[i] != 0.0) {
++                p_f->endcond[i] |= endcond_ioniz;
++                p_f->running[i] = 0;
+             }
++        }
+ 
+-            /* Zero end condition if error happened in this function */
+-            if(p_f->err[i]) {
+-                p_f->endcond[i] = 0;
+-            }
++        /* Zero end condition if error happened in this function */
++        if(p_f->err[i]) {
++            p_f->endcond[i] = 0;
+         }
+     }
+ }
+diff --git a/src/endcond.h b/src/endcond.h
+index cc84a4b82..8fe39946a 100644
+--- a/src/endcond.h
++++ b/src/endcond.h
+@@ -34,7 +34,10 @@ enum ENDCOND_FLAG {
+ void endcond_check_gc(particle_simd_gc* p_f, particle_simd_gc* p_i,
+                       sim_data* sim);
+ void endcond_check_fo(particle_simd_fo* p_f, particle_simd_fo* p_i,
+-                      sim_data* sim);
++                      real* h, real cputime, sim_data* sim);
++DECLARE_TARGET_SIMD_UNIFORM(p_f, p_i, h, sim)
++void endcond_check_fo_particle(particle_simd_fo* p_f, particle_simd_fo* p_i,
++                               real* h, real cputime, sim_data* sim, int i);
+ void endcond_check_ml(particle_simd_ml* p_f, particle_simd_ml* p_i,
+                       sim_data* sim);
+ 
+diff --git a/src/math.c b/src/math.c
+index 4e70c7333..4a1b7b816 100644
+--- a/src/math.c
++++ b/src/math.c
+@@ -424,6 +424,9 @@ real* math_rsearch(const real key, const real* base, int num) {
+  * @param zv array of z points for the polygon
+  * @param n number of points in the polygon
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ int math_point_in_polygon(real r, real z, real* rv, real* zv, int n) {
+     int hits = 0;
+ 
+diff --git a/src/mhd.c b/src/mhd.c
+index b417e9b88..f7a221521 100644
+--- a/src/mhd.c
++++ b/src/mhd.c
+@@ -88,6 +88,9 @@ void mhd_offload(mhd_data* data) {
+  *
+  * @return Non-zero a5err value if evaluation failed, zero otherwise
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err mhd_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
+                int includemode, boozer_data* boozerdata, mhd_data* mhddata,
+                B_field_data* Bdata) {
+@@ -144,6 +147,9 @@ a5err mhd_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
+  *
+  * @return Non-zero a5err value if evaluation failed, zero otherwise
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err mhd_perturbations(real pert_field[7], real r, real phi, real z,
+                         real t, int pertonly, int includemode,
+                         boozer_data* boozerdata, mhd_data* mhddata,
+diff --git a/src/mhd/mhd_nonstat.c b/src/mhd/mhd_nonstat.c
+index 14c5b14ce..29e0a864e 100644
+--- a/src/mhd/mhd_nonstat.c
++++ b/src/mhd/mhd_nonstat.c
+@@ -136,6 +136,9 @@ void mhd_nonstat_offload(mhd_nonstat_data* data) {
+  *
+  * @return Non-zero a5err value if evaluation failed, zero otherwise
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err mhd_nonstat_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
+                        int includemode, boozer_data* boozerdata,
+                        mhd_nonstat_data* mhddata, B_field_data* Bdata) {
+@@ -267,6 +270,9 @@ a5err mhd_nonstat_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
+  *
+  * @return Non-zero a5err value if evaluation failed, zero otherwise
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err mhd_nonstat_perturbations(
+     real pert_field[7], real r, real phi, real z, real t, int pertonly,
+     int includemode, boozer_data* boozerdata, mhd_nonstat_data* mhddata,
+diff --git a/src/mhd/mhd_stat.c b/src/mhd/mhd_stat.c
+index 7cd9e0ce0..8fbf25edd 100644
+--- a/src/mhd/mhd_stat.c
++++ b/src/mhd/mhd_stat.c
+@@ -132,6 +132,9 @@ void mhd_stat_offload(mhd_stat_data* data) {
+  *
+  * @return Non-zero a5err value if evaluation failed, zero otherwise
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err mhd_stat_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
+                     int includemode, boozer_data* boozerdata,
+                     mhd_stat_data* mhddata, B_field_data* Bdata) {
+@@ -257,6 +260,9 @@ a5err mhd_stat_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
+  *
+  * @return Non-zero a5err value if evaluation failed, zero otherwise
+  */
++#if defined(GPU) && defined(_OPENACC)
++#pragma acc routine seq
++#endif
+ a5err mhd_stat_perturbations(real pert_field[7], real r, real phi, real z,
+                              real t, int pertonly, int includemode,
+                              boozer_data* boozerdata, mhd_stat_data* mhddata,
+diff --git a/src/print.c b/src/print.c
+index 235b0b803..decc45a83 100644
+--- a/src/print.c
++++ b/src/print.c
+@@ -7,4 +7,4 @@
+ /**
+  * @brief Controls the amount of information that is outputted to stdout
+ */
+-const char VERBOSE_LEVEL = VERBOSE;
++const int VERBOSE_LEVEL = VERBOSE;
+diff --git a/src/print.h b/src/print.h
+index d81b6f9c7..3f179deb3 100644
+--- a/src/print.h
++++ b/src/print.h
+@@ -23,7 +23,7 @@ enum VERBOSE_RANK {
+ /**
+  * @brief Verbose level
+  */
+-extern const char VERBOSE_LEVEL;
++extern const int VERBOSE_LEVEL;
+ 
+ /**
+  * @brief Print to standard output
+diff --git a/src/simulate/mccc/mccc_fo_euler.c b/src/simulate/mccc/mccc_fo_euler.c
+index 11f31ffc5..e82d1982b 100644
+--- a/src/simulate/mccc/mccc_fo_euler.c
++++ b/src/simulate/mccc/mccc_fo_euler.c
+@@ -32,8 +32,14 @@ void mccc_fo_euler(particle_simd_fo* p, real* h, plasma_data* pdata,
+     const real* qb = plasma_get_species_charge(pdata);
+     const real* mb = plasma_get_species_mass(pdata);
+ 
++#if defined(GPU) && defined(_OPENACC)
++    #pragma acc parallel loop present(p[0:1], h[0:p->n_mrk], \
++                                      rnd[0:3*p->n_mrk], pdata[0:1], \
++                                      mdata[0:1])
++#else
+     GPU_DATA_IS_MAPPED(h[0:p->n_mrk], rnd[0:3*p->n_mrk])
+     GPU_PARALLEL_LOOP_ALL_LEVELS
++#endif
+     for(int i = 0; i < p->n_mrk; i++) {
+         if(p->running[i]) {
+             a5err errflag = 0;
+diff --git a/src/simulate/simulate_fo_fixed.c b/src/simulate/simulate_fo_fixed.c
+index 76ac514ec..99e462f72 100644
+--- a/src/simulate/simulate_fo_fixed.c
++++ b/src/simulate/simulate_fo_fixed.c
+@@ -27,6 +27,11 @@
+ DECLARE_TARGET_SIMD_UNIFORM(sim)
+ real simulate_fo_fixed_inidt(sim_data* sim, particle_simd_fo* p, int i);
+ 
++/* On GPU path, avoid a host-side running-count sync every single time-step. */
++#ifndef FO_GPU_RUNNING_CHECK_INTERVAL
++#define FO_GPU_RUNNING_CHECK_INTERVAL 512
++#endif
++
+ /**
+  * @brief Simulates particles using fixed time-step
+  *
+@@ -67,6 +72,9 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
+ 
+     /* Initialize running particles */
+     int n_running = particle_cycle_fo(pq, &p, &sim->B_data, cycle);
++#ifdef GPU
++    int running_check_counter = 0;
++#endif
+ 
+     /* Determine simulation time-step */
+     #pragma omp simd
+@@ -90,40 +98,49 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
+     particle_offload_fo(&p0);
+     real* rnd = (real*) malloc(3*mrk_array_size*sizeof(real));
+     GPU_MAP_TO_DEVICE(hin[0:mrk_array_size], rnd[0:3*mrk_array_size])
++
++    GPU_DATA_IS_MAPPED(hin[0:mrk_array_size], rnd[0:3*mrk_array_size], p[0:1], p0[0:1])
++    {
+     while(n_running > 0) {
+-        /* Store marker states */
+-        GPU_PARALLEL_LOOP_ALL_LEVELS
+-        for(int i = 0; i < p.n_mrk; i++) {
+-            particle_copy_fo(&p, i, &p0, i);
+-        }
+         /*************************** Physics **********************************/
+ 
+-        /* Set time-step negative if tracing backwards in time */
+-        GPU_PARALLEL_LOOP_ALL_LEVELS
+-        for(int i = 0; i < p.n_mrk; i++) {
+-            if(sim->reverse_time) {
+-                hin[i]  = -hin[i];
+-            }
+-        }
+-
+         /* Volume preserving algorithm for orbit-following */
+         if(sim->enable_orbfol) {
+             if(sim->enable_mhd) {
+-                step_fo_vpa_mhd(
+-                    &p, hin, &sim->B_data, &sim->E_data, &sim->boozer_data,
+-                    &sim->mhd_data, sim->enable_aldforce);
++                if(!sim->enable_clmbcol && !sim->enable_atomic) {
++                    cputime = A5_WTIME;
++                    step_fo_vpa_mhd_endcond(
++                        &p, &p0, hin, &sim->B_data, &sim->E_data,
++                        &sim->boozer_data, &sim->mhd_data, sim,
++                        cputime - cputime_last, sim->enable_aldforce,
++                        sim->reverse_time);
++                    cputime_last = cputime;
++                }
++                else {
++                    step_fo_vpa_mhd(
++                        &p, &p0, hin, &sim->B_data, &sim->E_data,
++                        &sim->boozer_data,
++                        &sim->mhd_data, sim->enable_aldforce, sim->reverse_time);
++                }
++            }
++            else if(!sim->enable_clmbcol && !sim->enable_atomic) {
++                cputime = A5_WTIME;
++                step_fo_vpa_endcond(
++                    &p, &p0, hin, &sim->B_data, &sim->E_data, sim,
++                    cputime - cputime_last, sim->enable_aldforce,
++                    sim->reverse_time);
++                cputime_last = cputime;
+             }
+             else {
+-                step_fo_vpa(&p, hin, &sim->B_data, &sim->E_data,
+-                            sim->enable_aldforce);
++                step_fo_vpa(&p, &p0, hin, &sim->B_data, &sim->E_data,
++                            sim->enable_aldforce, sim->reverse_time);
+             }
+         }
+-
+-        /* Switch sign of the time-step again if it was reverted earlier */
+-        GPU_PARALLEL_LOOP_ALL_LEVELS
+-        for(int i = 0; i < p.n_mrk; i++) {
+-            if(sim->reverse_time) {
+-                hin[i]  = -hin[i];
++        else {
++            /* Keep p0 updated for diagnostics/endcond paths when orbfol is off. */
++            GPU_PARALLEL_LOOP_ALL_LEVELS
++            for(int i = 0; i < p.n_mrk; i++) {
++                particle_copy_fo(&p, i, &p0, i);
+             }
+         }
+ 
+@@ -139,21 +156,13 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
+         }
+         /**********************************************************************/
+ 
+-
+-        /* Update simulation and cpu times */
+-        cputime = A5_WTIME;
+-        GPU_PARALLEL_LOOP_ALL_LEVELS
+-        for(int i = 0; i < p.n_mrk; i++) {
+-            if(p.running[i]){
+-                p.time[i]    += ( 1.0 - 2.0 * ( sim->reverse_time > 0 ) ) * hin[i];
+-                p.mileage[i] += hin[i];
+-                p.cputime[i] += cputime - cputime_last;
+-            }
++        /* Check possible end conditions (also advances marker times). */
++        if(!(sim->enable_orbfol && !sim->enable_mhd &&
++             !sim->enable_clmbcol && !sim->enable_atomic)) {
++            cputime = A5_WTIME;
++            endcond_check_fo(&p, &p0, hin, cputime - cputime_last, sim);
++            cputime_last = cputime;
+         }
+-        cputime_last = cputime;
+-
+-        /* Check possible end conditions */
+-        endcond_check_fo(&p, &p0, sim);
+ 
+         /* Update diagnostics */
+         if(!(sim->record_mode)) {
+@@ -190,15 +199,24 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
+ 
+         /* Update running particles */
+ #ifdef GPU
+-        n_running = 0;
+-        GPU_PARALLEL_LOOP_ALL_LEVELS_REDUCTION(n_running)
+-        for(int i = 0; i < p.n_mrk; i++)
+-        {
+-            if(p.running[i] > 0) n_running++;
++        running_check_counter++;
++        if(running_check_counter >= FO_GPU_RUNNING_CHECK_INTERVAL) {
++            running_check_counter = 0;
++            n_running = 0;
++            GPU_PARALLEL_LOOP_ALL_LEVELS_REDUCTION(n_running)
++            for(int i = 0; i < p.n_mrk; i++)
++            {
++                if(p.running[i] > 0) n_running++;
++            }
++        }
++        else {
++            /* Keep the loop going and defer host-visible completion check. */
++            n_running = 1;
+         }
+ #else
+         n_running = particle_cycle_fo(pq, &p, &sim->B_data, cycle);
+ #endif
++
+ #ifndef GPU
+         /* Determine simulation time-step for new particles */
+         GPU_PARALLEL_LOOP_ALL_LEVELS
+@@ -208,6 +226,7 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
+             }
+         }
+ #endif
++    }
+     }
+     /* All markers simulated! */
+ #ifdef GPU
+diff --git a/src/simulate/step/step_fo_vpa.c b/src/simulate/step/step_fo_vpa.c
+index 5345c2df2..dd7d412f6 100644
+--- a/src/simulate/step/step_fo_vpa.c
++++ b/src/simulate/step/step_fo_vpa.c
+@@ -12,6 +12,10 @@
+ #include "../../error.h"
+ #include "../../B_field.h"
+ #include "../../E_field.h"
++#include "../../wall.h"
++#include "../../plasma.h"
++#include "../../simulate.h"
++#include "../../endcond.h"
+ #include "../../boozer.h"
+ #include "../../mhd.h"
+ #include "../../particle.h"
+@@ -33,13 +37,21 @@
+  * @param Edata pointer to electric field data
+  * @param aldforce indicates whether Abraham-Lorentz-Dirac force is enabled
+  */
+-void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+-                 E_field_data* Edata, int aldforce) {
++void step_fo_vpa(particle_simd_fo* p, particle_simd_fo* p0, real* h,
++                 B_field_data* Bdata,
++                 E_field_data* Edata, int aldforce, int reverse_time) {
++#if defined(GPU) && defined(_OPENACC)
++    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:p->n_mrk], \
++                                      Bdata[0:1], Edata[0:1])
++#else
+     GPU_DATA_IS_MAPPED(h[0:p->n_mrk])
+     GPU_PARALLEL_LOOP_ALL_LEVELS
++#endif
+     for(int i = 0; i < p->n_mrk; i++) {
++        particle_copy_fo(p, i, p0, i);
+         if(p->running[i]) {
+             a5err errflag = 0;
++            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
+ 
+             real R0   = p->r[i];
+             real z0   = p->z[i];
+@@ -57,9 +69,9 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+ 
+             /* Take a half step and evaluate fields at that position */
+             real gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
+-            posxyz[0] = posxyz0[0] + pxyz[0] * h[i] / (2.0 * gamma * mass);
+-            posxyz[1] = posxyz0[1] + pxyz[1] * h[i] / (2.0 * gamma * mass);
+-            posxyz[2] = posxyz0[2] + pxyz[2] * h[i] / (2.0 * gamma * mass);
++            posxyz[0] = posxyz0[0] + pxyz[0] * dt / (2.0 * gamma * mass);
++            posxyz[1] = posxyz0[1] + pxyz[1] * dt / (2.0 * gamma * mass);
++            posxyz[2] = posxyz0[2] + pxyz[2] * dt / (2.0 * gamma * mass);
+ 
+             math_xyz2rpz(posxyz, posrpz);
+ 
+@@ -67,11 +79,11 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+             real Erpz[3];
+             if(!errflag) {
+                 errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
+-                                         t0 + h[i]/2.0, Bdata);
++                                         t0 + dt/2.0, Bdata);
+             }
+             if(!errflag) {
+                 errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
+-                                         t0 + h[i]/2.0, Edata, Bdata);
++                                         t0 + dt/2.0, Edata, Bdata);
+             }
+ 
+             real fposxyz[3]; // final position in cartesian coordinates
+@@ -86,31 +98,34 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+ 
+                 /* Evaluate helper variable pminus */
+                 real pminus[3];
+-                real sigma = p->charge[i]*h[i]/(2*p->mass[i]*CONST_C);
++                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
+                 pminus[0] = pxyz[0] / (mass * CONST_C) + sigma * Exyz[0];
+                 pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
+                 pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
+ 
+-                /* Second helper variable pplus*/
+-                real d = (p->charge[i]*h[i]/(2*p->mass[i])) /
++                /* Second helper variable pplus using Boris cross-product form
++                 * equivalent to matrix formulation but cheaper on GPU. */
++                real d = (p->charge[i]*dt/(2*p->mass[i])) /
+                     sqrt( 1 + math_dot(pminus,pminus) );
+-                real d2 = d*d;
+-
+-                real Bhat[9] = {       0,  Bxyz[2], -Bxyz[1],
+-                                -Bxyz[2],        0,  Bxyz[0],
+-                                 Bxyz[1], -Bxyz[0],        0};
+-                real Bhat2[9];
+-                math_matmul(Bhat, Bhat, 3, 3, 3, Bhat2);
+-
+-                real B2 = Bxyz[0]*Bxyz[0] + Bxyz[1]*Bxyz[1] + Bxyz[2]*Bxyz[2];
+-
+-                real A[9];
+-                for(int j=0; j<9; j++) {
+-                    A[j] = (Bhat[j] + d*Bhat2[j]) * (2.0*d/(1.0+d2*B2));
+-                }
++                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
++                real t2 = math_dot(tvec, tvec);
++                real svec[3] = {
++                    2.0*tvec[0]/(1.0+t2),
++                    2.0*tvec[1]/(1.0+t2),
++                    2.0*tvec[2]/(1.0+t2)};
++
++                real pprime[3];
++                real ctmp[3];
++                math_cross(pminus, tvec, ctmp);
++                pprime[0] = pminus[0] + ctmp[0];
++                pprime[1] = pminus[1] + ctmp[1];
++                pprime[2] = pminus[2] + ctmp[2];
+ 
+                 real pplus[3];
+-                math_matmul(pminus, A, 1, 3, 3, pplus);
++                math_cross(pprime, svec, ctmp);
++                pplus[0] = ctmp[0];
++                pplus[1] = ctmp[1];
++                pplus[2] = ctmp[2];
+ 
+                 /* Take the step */
+                 real pfinal[3];
+@@ -124,9 +139,9 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+             }
+ 
+             gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
+-            fposxyz[0] = posxyz[0] + h[i] * pxyz[0] / (2.0 * gamma * mass);
+-            fposxyz[1] = posxyz[1] + h[i] * pxyz[1] / (2.0 * gamma * mass);
+-            fposxyz[2] = posxyz[2] + h[i] * pxyz[2] / (2.0 * gamma * mass);
++            fposxyz[0] = posxyz[0] + dt * pxyz[0] / (2.0 * gamma * mass);
++            fposxyz[1] = posxyz[1] + dt * pxyz[1] / (2.0 * gamma * mass);
++            fposxyz[2] = posxyz[2] + dt * pxyz[2] / (2.0 * gamma * mass);
+ 
+             if(!errflag) {
+                 /* Back to cylindrical coordinates */
+@@ -151,11 +166,11 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+             real rho[2];
+             if(!errflag) {
+                 errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
+-                                            t0 + h[i], Bdata);
++                                            t0 + dt, Bdata);
+             }
+             if(!errflag) {
+                 errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
+-                                           t0 + h[i], Bdata);
++                                           t0 + dt, Bdata);
+             }
+             if(!errflag) {
+                 errflag = B_field_eval_rho(rho, psi[0], Bdata);
+@@ -190,23 +205,25 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+ 
+             /* Evaluate Abraham-Lorentz-Dirac force (if enabled) is evaluated
+              * separately using the Euler method */
+-            real Bnorm = math_normc(p->B_r[i], p->B_phi[i], p->B_z[i]);
+-            real pnorm = math_normc(p->p_r[i], p->p_phi[i], p->p_z[i]);
+-            real t_ald = phys_ald_force_chartime(
+-                p->charge[i], p->mass[i], Bnorm, gamma) * aldforce;
+-            real pparbhatperB = (
+-                  p->p_r[i]*p->B_r[i] + p->p_phi[i]*p->B_phi[i]
+-                + p->p_z[i]*p->B_z[i] ) / ( Bnorm * Bnorm * pnorm );
+-            real pperpvec[3] = {
+-                p->p_r[i]   - pparbhatperB * p->B_r[i],
+-                p->p_phi[i] - pparbhatperB * p->B_phi[i],
+-                p->p_z[i]   - pparbhatperB * p->B_z[i] };
+-            real C = (   pperpvec[0]*pperpvec[0] + pperpvec[1]*pperpvec[1]
+-                       + pperpvec[2]*pperpvec[2] )
+-                       / ( p->mass[i]*p->mass[i] * CONST_C2 );
+-            p->p_r[i]   -= t_ald * ( pperpvec[0] + C * p->p_r[i] );
+-            p->p_phi[i] -= t_ald * ( pperpvec[1] + C * p->p_phi[i] );
+-            p->p_z[i]   -= t_ald * ( pperpvec[2] + C * p->p_z[i] );
++            if(aldforce && !errflag) {
++                real Bnorm = math_normc(p->B_r[i], p->B_phi[i], p->B_z[i]);
++                real pnorm = math_normc(p->p_r[i], p->p_phi[i], p->p_z[i]);
++                real t_ald = phys_ald_force_chartime(
++                    p->charge[i], p->mass[i], Bnorm, gamma);
++                real pparbhatperB = (
++                      p->p_r[i]*p->B_r[i] + p->p_phi[i]*p->B_phi[i]
++                    + p->p_z[i]*p->B_z[i] ) / ( Bnorm * Bnorm * pnorm );
++                real pperpvec[3] = {
++                    p->p_r[i]   - pparbhatperB * p->B_r[i],
++                    p->p_phi[i] - pparbhatperB * p->B_phi[i],
++                    p->p_z[i]   - pparbhatperB * p->B_z[i] };
++                real C = (   pperpvec[0]*pperpvec[0] + pperpvec[1]*pperpvec[1]
++                           + pperpvec[2]*pperpvec[2] )
++                           / ( p->mass[i]*p->mass[i] * CONST_C2 );
++                p->p_r[i]   -= t_ald * ( pperpvec[0] + C * p->p_r[i] );
++                p->p_phi[i] -= t_ald * ( pperpvec[1] + C * p->p_phi[i] );
++                p->p_z[i]   -= t_ald * ( pperpvec[2] + C * p->p_z[i] );
++            }
+ 
+             /* Error handling */
+             if(errflag) {
+@@ -217,6 +234,178 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+     }
+ }
+ 
++void step_fo_vpa_endcond(particle_simd_fo* p, particle_simd_fo* p0, real* h,
++                         B_field_data* Bdata,
++                         E_field_data* Edata, sim_data* sim, real cputime,
++                         int aldforce, int reverse_time) {
++#if defined(GPU) && defined(_OPENACC)
++    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:p->n_mrk], \
++                                      Bdata[0:1], Edata[0:1], sim[0:1])
++#else
++    GPU_DATA_IS_MAPPED(h[0:p->n_mrk])
++    GPU_PARALLEL_LOOP_ALL_LEVELS
++#endif
++    for(int i = 0; i < p->n_mrk; i++) {
++        particle_copy_fo(p, i, p0, i);
++        if(p->running[i]) {
++            a5err errflag = 0;
++            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
++
++            real R0   = p->r[i];
++            real z0   = p->z[i];
++            real t0   = p->time[i];
++            real mass = p->mass[i];
++
++            real prpz[3] = {p->p_r[i], p->p_phi[i], p->p_z[i]};
++            real pxyz[3];
++            math_vec_rpz2xyz(prpz, pxyz, p->phi[i]);
++
++            real posrpz[3] = {p->r[i], p->phi[i], p->z[i]};
++            real posxyz0[3],posxyz[3];
++            math_rpz2xyz(posrpz, posxyz0);
++
++            real inv_mass_c = 1.0 / (mass * CONST_C);
++            real p2 = math_dot(pxyz, pxyz);
++            real gamma = sqrt(1.0 + p2 * inv_mass_c * inv_mass_c);
++            real half_dt_over_gammamass = 0.5 * dt / (gamma * mass);
++            posxyz[0] = posxyz0[0] + pxyz[0] * half_dt_over_gammamass;
++            posxyz[1] = posxyz0[1] + pxyz[1] * half_dt_over_gammamass;
++            posxyz[2] = posxyz0[2] + pxyz[2] * half_dt_over_gammamass;
++
++            math_xyz2rpz(posxyz, posrpz);
++
++            real Brpz[3];
++            real Erpz[3];
++            if(!errflag) {
++                errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
++                                         t0 + dt/2.0, Bdata);
++            }
++            if(!errflag) {
++                errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
++                                         t0 + dt/2.0, Edata, Bdata);
++            }
++
++            real fposxyz[3];
++            if(!errflag) {
++                real Bxyz[3];
++                real Exyz[3];
++
++                math_vec_rpz2xyz(Brpz, Bxyz, posrpz[1]);
++                math_vec_rpz2xyz(Erpz, Exyz, posrpz[1]);
++
++                real pminus[3];
++                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
++                pminus[0] = pxyz[0] * inv_mass_c + sigma * Exyz[0];
++                pminus[1] = pxyz[1] * inv_mass_c + sigma * Exyz[1];
++                pminus[2] = pxyz[2] * inv_mass_c + sigma * Exyz[2];
++
++                real d = (p->charge[i]*dt/(2*p->mass[i])) /
++                    sqrt( 1 + math_dot(pminus,pminus) );
++                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
++                real t2 = math_dot(tvec, tvec);
++                real svec[3] = {
++                    2.0*tvec[0]/(1.0+t2),
++                    2.0*tvec[1]/(1.0+t2),
++                    2.0*tvec[2]/(1.0+t2)};
++
++                real pprime[3];
++                real ctmp[3];
++                math_cross(pminus, tvec, ctmp);
++                pprime[0] = pminus[0] + ctmp[0];
++                pprime[1] = pminus[1] + ctmp[1];
++                pprime[2] = pminus[2] + ctmp[2];
++
++                real pplus[3];
++                math_cross(pprime, svec, ctmp);
++                pplus[0] = ctmp[0];
++                pplus[1] = ctmp[1];
++                pplus[2] = ctmp[2];
++
++                real pfinal[3];
++                pfinal[0] = pminus[0] + pplus[0] + sigma*Exyz[0];
++                pfinal[1] = pminus[1] + pplus[1] + sigma*Exyz[1];
++                pfinal[2] = pminus[2] + pplus[2] + sigma*Exyz[2];
++
++                pxyz[0] = pfinal[0] * mass * CONST_C;
++                pxyz[1] = pfinal[1] * mass * CONST_C;
++                pxyz[2] = pfinal[2] * mass * CONST_C;
++            }
++
++            p2 = math_dot(pxyz, pxyz);
++            gamma = sqrt(1.0 + p2 * inv_mass_c * inv_mass_c);
++            half_dt_over_gammamass = 0.5 * dt / (gamma * mass);
++            fposxyz[0] = posxyz[0] + pxyz[0] * half_dt_over_gammamass;
++            fposxyz[1] = posxyz[1] + pxyz[1] * half_dt_over_gammamass;
++            fposxyz[2] = posxyz[2] + pxyz[2] * half_dt_over_gammamass;
++
++            if(!errflag) {
++                p->r[i] = sqrt(fposxyz[0]*fposxyz[0]+fposxyz[1]*fposxyz[1]);
++
++                p->phi[i] += atan2(
++                    posxyz0[0] * fposxyz[1] - posxyz0[1] * fposxyz[0],
++                    posxyz0[0] * fposxyz[0] + posxyz0[1] * fposxyz[1] );
++                p->z[i] = fposxyz[2];
++
++                real cosp = cos(p->phi[i]);
++                real sinp = sin(p->phi[i]);
++                p->p_r[i]   =  pxyz[0] * cosp + pxyz[1] * sinp;
++                p->p_phi[i] = -pxyz[0] * sinp + pxyz[1] * cosp;
++                p->p_z[i]   =  pxyz[2];
++            }
++
++            real BdBrpz[15];
++            real psi[1];
++            real rho[2];
++            if(!errflag) {
++                errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
++                                            t0 + dt, Bdata);
++            }
++            if(!errflag) {
++                errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
++                                           t0 + dt, Bdata);
++            }
++            if(!errflag) {
++                errflag = B_field_eval_rho(rho, psi[0], Bdata);
++            }
++
++            if(!errflag) {
++                p->B_r[i]        = BdBrpz[0];
++                p->B_r_dr[i]     = BdBrpz[1];
++                p->B_r_dphi[i]   = BdBrpz[2];
++                p->B_r_dz[i]     = BdBrpz[3];
++
++                p->B_phi[i]      = BdBrpz[4];
++                p->B_phi_dr[i]   = BdBrpz[5];
++                p->B_phi_dphi[i] = BdBrpz[6];
++                p->B_phi_dz[i]   = BdBrpz[7];
++
++                p->B_z[i]        = BdBrpz[8];
++                p->B_z_dr[i]     = BdBrpz[9];
++                p->B_z_dphi[i]   = BdBrpz[10];
++                p->B_z_dz[i]     = BdBrpz[11];
++
++                p->rho[i] = rho[0];
++
++                real axisrz[2];
++                errflag = B_field_get_axis_rz(axisrz, Bdata, p->phi[i]);
++                p->theta[i] += atan2(   (R0-axisrz[0]) * (p->z[i]-axisrz[1])
++                                      - (z0-axisrz[1]) * (p->r[i]-axisrz[0]),
++                                        (R0-axisrz[0]) * (p->r[i]-axisrz[0])
++                                      + (z0-axisrz[1]) * (p->z[i]-axisrz[1]) );
++            }
++
++            if(!errflag) {
++                endcond_check_fo_particle(p, p0, h, cputime, sim, i);
++            }
++
++            if(errflag) {
++                p->err[i] = errflag;
++                p->running[i] = 0;
++            }
++        }
++    }
++}
++
+ 
+ /**
+  * @brief Integrate a full orbit step with VPA and MHd modes present.
+@@ -232,15 +421,23 @@ void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+  * @param aldforce indicates whether Abraham-Lorentz-Dirac force is enabled
+  */
+ void step_fo_vpa_mhd(
+-    particle_simd_fo* p, real* h, B_field_data* Bdata, E_field_data* Edata,
+-    boozer_data* boozer, mhd_data* mhd, int aldforce) {
++    particle_simd_fo* p, particle_simd_fo* p0, real* h,
++    B_field_data* Bdata, E_field_data* Edata,
++    boozer_data* boozer, mhd_data* mhd, int aldforce, int reverse_time) {
+ 
+     int i;
+     /* Following loop will be executed simultaneously for all i */
++#if defined(GPU) && defined(_OPENACC)
++    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:NSIMD], \
++                                      Bdata[0:1], Edata[0:1], \
++                                      boozer[0:1], mhd[0:1])
++#endif
+     #pragma omp simd  aligned(h : 64)
+     for(i = 0; i < NSIMD; i++) {
++        particle_copy_fo(p, i, p0, i);
+         if(p->running[i]) {
+             a5err errflag = 0;
++            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
+ 
+             real R0   = p->r[i];
+             real z0   = p->z[i];
+@@ -258,9 +455,9 @@ void step_fo_vpa_mhd(
+ 
+             /* Take a half step and evaluate fields at that position */
+             real gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
+-            posxyz[0] = posxyz0[0] + pxyz[0] * h[i] / (2 * gamma * mass);
+-            posxyz[1] = posxyz0[1] + pxyz[1] * h[i] / (2 * gamma * mass);
+-            posxyz[2] = posxyz0[2] + pxyz[2] * h[i] / (2 * gamma * mass);
++            posxyz[0] = posxyz0[0] + pxyz[0] * dt / (2 * gamma * mass);
++            posxyz[1] = posxyz0[1] + pxyz[1] * dt / (2 * gamma * mass);
++            posxyz[2] = posxyz0[2] + pxyz[2] * dt / (2 * gamma * mass);
+ 
+             math_xyz2rpz(posxyz,posrpz);
+ 
+@@ -268,18 +465,18 @@ void step_fo_vpa_mhd(
+             real Erpz[3];
+             if(!errflag) {
+                 errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
+-                                         t0 + h[i]/2, Bdata);
++                                         t0 + dt/2, Bdata);
+             }
+             if(!errflag) {
+                 errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
+-                                         t0 + h[i]/2, Edata, Bdata);
++                                         t0 + dt/2, Edata, Bdata);
+             }
+ 
+             real pert[7];
+             int pertonly = 0;
+             if(!errflag) {
+                 errflag = mhd_perturbations(
+-                    pert, posrpz[0], posrpz[1], posrpz[2], t0 + h[i]/2,
++                    pert, posrpz[0], posrpz[1], posrpz[2], t0 + dt/2,
+                     pertonly, MHD_INCLUDE_ALL, boozer, mhd, Bdata);
+             }
+             Brpz[0] = pert[0];
+@@ -301,31 +498,226 @@ void step_fo_vpa_mhd(
+ 
+                 /* Evaluate helper variable pminus */
+                 real pminus[3];
+-                real sigma = p->charge[i]*h[i]/(2*p->mass[i]*CONST_C);
++                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
+                 pminus[0] = pxyz[0] / (mass * CONST_C) + sigma * Exyz[0];
+                 pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
+                 pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
+ 
+-                /* Second helper variable pplus*/
+-                real d = (p->charge[i]*h[i]/(2*p->mass[i])) /
++                /* Second helper variable pplus using Boris cross-product form
++                 * equivalent to matrix formulation but cheaper on GPU. */
++                real d = (p->charge[i]*dt/(2*p->mass[i])) /
+                     sqrt( 1 + math_dot(pminus,pminus) );
+-                real d2 = d*d;
++                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
++                real t2 = math_dot(tvec, tvec);
++                real svec[3] = {
++                    2.0*tvec[0]/(1.0+t2),
++                    2.0*tvec[1]/(1.0+t2),
++                    2.0*tvec[2]/(1.0+t2)};
++
++                real pprime[3];
++                real ctmp[3];
++                math_cross(pminus, tvec, ctmp);
++                pprime[0] = pminus[0] + ctmp[0];
++                pprime[1] = pminus[1] + ctmp[1];
++                pprime[2] = pminus[2] + ctmp[2];
++
++                real pplus[3];
++                math_cross(pprime, svec, ctmp);
++                pplus[0] = ctmp[0];
++                pplus[1] = ctmp[1];
++                pplus[2] = ctmp[2];
++
++                /* Take the step */
++                real pfinal[3];
++                pfinal[0] = pminus[0] + pplus[0] + sigma*Exyz[0];
++                pfinal[1] = pminus[1] + pplus[1] + sigma*Exyz[1];
++                pfinal[2] = pminus[2] + pplus[2] + sigma*Exyz[2];
++
++                pxyz[0] = pfinal[0] * mass * CONST_C;
++                pxyz[1] = pfinal[1] * mass * CONST_C;
++                pxyz[2] = pfinal[2] * mass * CONST_C;
++            }
++
++            gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
++            fposxyz[0] = posxyz[0] + dt * pxyz[0] / (2 * gamma * mass);
++            fposxyz[1] = posxyz[1] + dt * pxyz[1] / (2 * gamma * mass);
++            fposxyz[2] = posxyz[2] + dt * pxyz[2] / (2 * gamma * mass);
++
++            if(!errflag) {
++                /* Back to cylindrical coordinates */
++                p->r[i] = sqrt(fposxyz[0]*fposxyz[0]+fposxyz[1]*fposxyz[1]);
++
++                /* phi is evaluated like this to make sure it is cumulative */
++                p->phi[i] += atan2(
++                    posxyz0[0] * fposxyz[1] - posxyz0[1] * fposxyz[0],
++                    posxyz0[0] * fposxyz[0] + posxyz0[1] * fposxyz[1] );
++                p->z[i] = fposxyz[2];
++
++                real cosp = cos(p->phi[i]);
++                real sinp = sin(p->phi[i]);
++                p->p_r[i]   =  pxyz[0] * cosp + pxyz[1] * sinp;
++                p->p_phi[i] = -pxyz[0] * sinp + pxyz[1] * cosp;
++                p->p_z[i]   =  pxyz[2];
++            }
++
++            /* Evaluate magnetic field (and gradient) and rho at new position */
++            real BdBrpz[15];
++            real psi[1];
++            real rho[2];
++            if(!errflag) {
++                errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
++                                            t0 + dt, Bdata);
++            }
++            if(!errflag) {
++                errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
++                                           t0 + dt, Bdata);
++            }
++            if(!errflag) {
++                errflag = B_field_eval_rho(rho, psi[0], Bdata);
++            }
++
++            if(!errflag) {
++                p->B_r[i]        = BdBrpz[0];
++                p->B_r_dr[i]     = BdBrpz[1];
++                p->B_r_dphi[i]   = BdBrpz[2];
++                p->B_r_dz[i]     = BdBrpz[3];
++
++                p->B_phi[i]      = BdBrpz[4];
++                p->B_phi_dr[i]   = BdBrpz[5];
++                p->B_phi_dphi[i] = BdBrpz[6];
++                p->B_phi_dz[i]   = BdBrpz[7];
++
++                p->B_z[i]        = BdBrpz[8];
++                p->B_z_dr[i]     = BdBrpz[9];
++                p->B_z_dphi[i]   = BdBrpz[10];
++                p->B_z_dz[i]     = BdBrpz[11];
++
++                p->rho[i] = rho[0];
++
++                /* Evaluate phi and theta angles so that they are cumulative */
++                real axisrz[2];
++                errflag = B_field_get_axis_rz(axisrz, Bdata, p->phi[i]);
++                p->theta[i] += atan2(   (R0-axisrz[0]) * (p->z[i]-axisrz[1])
++                                      - (z0-axisrz[1]) * (p->r[i]-axisrz[0]),
++                                        (R0-axisrz[0]) * (p->r[i]-axisrz[0])
++                                      + (z0-axisrz[1]) * (p->z[i]-axisrz[1]) );
++            }
++
++            /* Error handling */
++            if(errflag) {
++                p->err[i] = errflag;
++                p->running[i] = 0;
++            }
++        }
++    }
++}
++
++void step_fo_vpa_mhd_endcond(
++    particle_simd_fo* p, particle_simd_fo* p0, real* h,
++    B_field_data* Bdata, E_field_data* Edata,
++    boozer_data* boozer, mhd_data* mhd, sim_data* sim, real cputime,
++    int aldforce, int reverse_time) {
++
++    int i;
++#if defined(GPU) && defined(_OPENACC)
++    #pragma acc parallel loop present(p[0:1], p0[0:1], h[0:NSIMD], \
++                                      Bdata[0:1], Edata[0:1], \
++                                      boozer[0:1], mhd[0:1], sim[0:1])
++#endif
++    #pragma omp simd  aligned(h : 64)
++    for(i = 0; i < NSIMD; i++) {
++        particle_copy_fo(p, i, p0, i);
++        if(p->running[i]) {
++            a5err errflag = 0;
++            real dt = h[i] * (1.0 - 2.0 * (reverse_time > 0));
++
++            real R0   = p->r[i];
++            real z0   = p->z[i];
++            real t0   = p->time[i];
++            real mass = p->mass[i];
++
++            /* Convert velocity to cartesian coordinates */
++            real prpz[3] = {p->p_r[i], p->p_phi[i], p->p_z[i]};
++            real pxyz[3];
++            math_vec_rpz2xyz(prpz, pxyz, p->phi[i]);
++
++            real posrpz[3] = {p->r[i], p->phi[i], p->z[i]};
++            real posxyz0[3],posxyz[3];
++            math_rpz2xyz(posrpz,posxyz0);
++
++            /* Take a half step and evaluate fields at that position */
++            real gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
++            posxyz[0] = posxyz0[0] + pxyz[0] * dt / (2 * gamma * mass);
++            posxyz[1] = posxyz0[1] + pxyz[1] * dt / (2 * gamma * mass);
++            posxyz[2] = posxyz0[2] + pxyz[2] * dt / (2 * gamma * mass);
++
++            math_xyz2rpz(posxyz,posrpz);
++
++            real Brpz[3];
++            real Erpz[3];
++            if(!errflag) {
++                errflag = B_field_eval_B(Brpz, posrpz[0], posrpz[1], posrpz[2],
++                                         t0 + dt/2, Bdata);
++            }
++            if(!errflag) {
++                errflag = E_field_eval_E(Erpz, posrpz[0], posrpz[1], posrpz[2],
++                                         t0 + dt/2, Edata, Bdata);
++            }
++
++            real pert[7];
++            int pertonly = 0;
++            if(!errflag) {
++                errflag = mhd_perturbations(
++                    pert, posrpz[0], posrpz[1], posrpz[2], t0 + dt/2,
++                    pertonly, MHD_INCLUDE_ALL, boozer, mhd, Bdata);
++            }
++            Brpz[0] = pert[0];
++            Brpz[1] = pert[1];
++            Brpz[2] = pert[2];
++            Erpz[0] += pert[3];
++            Erpz[1] += pert[4];
++            Erpz[2] += pert[5];
++
++            real fposxyz[3];
+ 
+-                real Bhat[9] = {       0,  Bxyz[2], -Bxyz[1],
+-                                -Bxyz[2],        0,  Bxyz[0],
+-                        Bxyz[1], -Bxyz[0],        0};
+-                real Bhat2[9];
+-                math_matmul(Bhat, Bhat, 3, 3, 3, Bhat2);
++            if(!errflag) {
++                /* Electromagnetic fields to cartesian coordinates */
++                real Bxyz[3];
++                real Exyz[3];
+ 
+-                real B2 = Bxyz[0]*Bxyz[0] + Bxyz[1]*Bxyz[1] + Bxyz[2]*Bxyz[2];
++                math_vec_rpz2xyz(Brpz, Bxyz, posrpz[1]);
++                math_vec_rpz2xyz(Erpz, Exyz, posrpz[1]);
+ 
+-                real A[9];
+-                for(int j=0; j<9; j++) {
+-                    A[j] = (Bhat[j] + d*Bhat2[j]) * (2.0*d/(1+d2*B2));
+-                }
++                /* Evaluate helper variable pminus */
++                real pminus[3];
++                real sigma = p->charge[i]*dt/(2*p->mass[i]*CONST_C);
++                pminus[0] = pxyz[0] / (mass * CONST_C) + sigma * Exyz[0];
++                pminus[1] = pxyz[1] / (mass * CONST_C) + sigma * Exyz[1];
++                pminus[2] = pxyz[2] / (mass * CONST_C) + sigma * Exyz[2];
++
++                /* Second helper variable pplus using Boris cross-product form
++                 * equivalent to matrix formulation but cheaper on GPU. */
++                real d = (p->charge[i]*dt/(2*p->mass[i])) /
++                    sqrt( 1 + math_dot(pminus,pminus) );
++                real tvec[3] = {d*Bxyz[0], d*Bxyz[1], d*Bxyz[2]};
++                real t2 = math_dot(tvec, tvec);
++                real svec[3] = {
++                    2.0*tvec[0]/(1.0+t2),
++                    2.0*tvec[1]/(1.0+t2),
++                    2.0*tvec[2]/(1.0+t2)};
++
++                real pprime[3];
++                real ctmp[3];
++                math_cross(pminus, tvec, ctmp);
++                pprime[0] = pminus[0] + ctmp[0];
++                pprime[1] = pminus[1] + ctmp[1];
++                pprime[2] = pminus[2] + ctmp[2];
+ 
+                 real pplus[3];
+-                math_matmul(pminus, A, 1, 3, 3, pplus);
++                math_cross(pprime, svec, ctmp);
++                pplus[0] = ctmp[0];
++                pplus[1] = ctmp[1];
++                pplus[2] = ctmp[2];
+ 
+                 /* Take the step */
+                 real pfinal[3];
+@@ -339,9 +731,9 @@ void step_fo_vpa_mhd(
+             }
+ 
+             gamma = physlib_gamma_pnorm(mass, math_norm(pxyz));
+-            fposxyz[0] = posxyz[0] + h[i] * pxyz[0] / (2 * gamma * mass);
+-            fposxyz[1] = posxyz[1] + h[i] * pxyz[1] / (2 * gamma * mass);
+-            fposxyz[2] = posxyz[2] + h[i] * pxyz[2] / (2 * gamma * mass);
++            fposxyz[0] = posxyz[0] + dt * pxyz[0] / (2 * gamma * mass);
++            fposxyz[1] = posxyz[1] + dt * pxyz[1] / (2 * gamma * mass);
++            fposxyz[2] = posxyz[2] + dt * pxyz[2] / (2 * gamma * mass);
+ 
+             if(!errflag) {
+                 /* Back to cylindrical coordinates */
+@@ -366,11 +758,11 @@ void step_fo_vpa_mhd(
+             real rho[2];
+             if(!errflag) {
+                 errflag = B_field_eval_B_dB(BdBrpz, p->r[i], p->phi[i], p->z[i],
+-                                            t0 + h[i], Bdata);
++                                            t0 + dt, Bdata);
+             }
+             if(!errflag) {
+                 errflag = B_field_eval_psi(psi, p->r[i], p->phi[i], p->z[i],
+-                                           t0 + h[i], Bdata);
++                                           t0 + dt, Bdata);
+             }
+             if(!errflag) {
+                 errflag = B_field_eval_rho(rho, psi[0], Bdata);
+@@ -403,7 +795,10 @@ void step_fo_vpa_mhd(
+                                       + (z0-axisrz[1]) * (p->z[i]-axisrz[1]) );
+             }
+ 
+-            /* Error handling */
++            if(!errflag) {
++                endcond_check_fo_particle(p, p0, h, cputime, sim, i);
++            }
++
+             if(errflag) {
+                 p->err[i] = errflag;
+                 p->running[i] = 0;
+diff --git a/src/simulate/step/step_fo_vpa.h b/src/simulate/step/step_fo_vpa.h
+index ceff4ca40..148c5ee66 100644
+--- a/src/simulate/step/step_fo_vpa.h
++++ b/src/simulate/step/step_fo_vpa.h
+@@ -10,10 +10,21 @@
+ #include "../../mhd.h"
+ #include "../../particle.h"
+ 
+-void step_fo_vpa(particle_simd_fo* p, real* h, B_field_data* Bdata,
+-                 E_field_data* Edata, int aldforce);
++void step_fo_vpa(particle_simd_fo* p, particle_simd_fo* p0, real* h,
++                 B_field_data* Bdata,
++                 E_field_data* Edata, int aldforce, int reverse_time);
++void step_fo_vpa_endcond(particle_simd_fo* p, particle_simd_fo* p0, real* h,
++                         B_field_data* Bdata,
++                         E_field_data* Edata, sim_data* sim, real cputime,
++                         int aldforce, int reverse_time);
++void step_fo_vpa_mhd_endcond(
++    particle_simd_fo* p, particle_simd_fo* p0, real* h,
++    B_field_data* Bdata, E_field_data* Edata,
++    boozer_data* boozer, mhd_data* mhd, sim_data* sim, real cputime,
++    int aldforce, int reverse_time);
+ void step_fo_vpa_mhd(
+-    particle_simd_fo* p, real* h, B_field_data* Bdata, E_field_data* Edata,
+-    boozer_data* boozer, mhd_data* mhd, int aldforce);
++    particle_simd_fo* p, particle_simd_fo* p0, real* h,
++    B_field_data* Bdata, E_field_data* Edata,
++    boozer_data* boozer, mhd_data* mhd, int aldforce, int reverse_time);
+ 
+ #endif
+diff --git a/src/spline/interp.h b/src/spline/interp.h
+index a350725e7..0fe006dd0 100644
+--- a/src/spline/interp.h
++++ b/src/spline/interp.h
+@@ -187,6 +187,22 @@ GPU_DECLARE_TARGET_SIMD_UNIFORM(str)
+ a5err interp3Dcomp_eval_f(real* f, interp3D_data* str,
+                          real x, real y, real z);
+ DECLARE_TARGET_END
++GPU_DECLARE_TARGET_SIMD_UNIFORM(str0, str1, str2)
++a5err interp3Dcomp_eval_f3(real f[3],
++                           interp3D_data* str0,
++                           interp3D_data* str1,
++                           interp3D_data* str2,
++                           real x, real y, real z);
++DECLARE_TARGET_END
++GPU_DECLARE_TARGET_SIMD_UNIFORM(str0, str1, str2)
++a5err interp3Dcomp_eval_df4_3(real f_df0[4],
++                              real f_df1[4],
++                              real f_df2[4],
++                              interp3D_data* str0,
++                              interp3D_data* str1,
++                              interp3D_data* str2,
++                              real x, real y, real z);
++DECLARE_TARGET_END
+ 
+ DECLARE_TARGET_SIMD_UNIFORM(str)
+ a5err interp1Dexpl_eval_f(real* f, interp1D_data* str, real x);
+@@ -206,6 +222,10 @@ GPU_DECLARE_TARGET_SIMD_UNIFORM(str)
+ a5err interp3Dcomp_eval_df(real* f_df, interp3D_data* str,
+                            real x, real y, real z);
+ DECLARE_TARGET_END
++GPU_DECLARE_TARGET_SIMD_UNIFORM(str)
++a5err interp3Dcomp_eval_df4(real* f_df, interp3D_data* str,
++                            real x, real y, real z);
++DECLARE_TARGET_END
+ 
+ DECLARE_TARGET_SIMD_UNIFORM(str)
+ a5err interp1Dexpl_eval_df(real* f_df, interp1D_data* str, real x);
+diff --git a/src/spline/interp3Dcomp.c b/src/spline/interp3Dcomp.c
+index a90d169c3..af858e754 100644
+--- a/src/spline/interp3Dcomp.c
++++ b/src/spline/interp3Dcomp.c
+@@ -360,65 +360,982 @@ a5err interp3Dcomp_eval_f(real* f, interp3D_data* str, real x, real y, real z) {
+     }
+ 
+     if(!err) {
++        /* Evaluate spline value */
++        *f = (
++            dzi*(
++                dxi*(dyi*str->c[n+0]+dy*str->c[n+y1+0])
++                +dx*(dyi*str->c[n+x1+0]+dy*str->c[n+y1+x1+0]))
++            +dz*(
++                dxi*(dyi*str->c[n+z1+0]+dy*str->c[n+y1+z1+0])
++                +dx*(dyi*str->c[n+x1+z1+0]+dy*str->c[n+y1+z1+x1+0])))
++            +xg2/6*(
++                dzi*(
++                    dxi3*(dyi*str->c[n+1]+dy*str->c[n+y1+1])
++                    +dx3*(dyi*str->c[n+x1+1]+dy*str->c[n+y1+x1+1]))
++                +dz*(
++                    dxi3*(dyi*str->c[n+z1+1]+dy*str->c[n+y1+z1+1])
++                    +dx3*(dyi*str->c[n+x1+z1+1]+dy*str->c[n+y1+z1+x1+1])))
++            +yg2/6*(
++                dzi*(
++                    dxi*(dyi3*str->c[n+2]+dy3*str->c[n+y1+2])
++                    +dx*(dyi3*str->c[n+x1+2]+dy3*str->c[n+y1+x1+2]))
++                +dz*(
++                    dxi*(dyi3*str->c[n+z1+2]+dy3*str->c[n+y1+z1+2])
++                    +dx*(dyi3*str->c[n+x1+z1+2]+dy3*str->c[n+y1+z1+x1+2])))
++            +zg2/6*(
++                dzi3*(
++                    dxi*(dyi*str->c[n+3]+dy*str->c[n+y1+3])
++                    +dx*(dyi*str->c[n+x1+3]+dy*str->c[n+y1+x1+3]))
++                +dz3*(
++                    dxi*(dyi*str->c[n+z1+3]+dy*str->c[n+y1+z1+3])
++                    +dx*(dyi*str->c[n+x1+z1+3]+dy*str->c[n+y1+z1+x1+3])))
++            +xg2*yg2/36*(
++                dzi*(
++                    dxi3*(dyi3*str->c[n+4]+dy3*str->c[n+y1+4])
++                    +dx3*(dyi3*str->c[n+x1+4]+dy3*str->c[n+y1+x1+4]))
++                +dz*(
++                    dxi3*(dyi3*str->c[n+z1+4]+dy3*str->c[n+y1+z1+4])
++                    +dx3*(dyi3*str->c[n+x1+z1+4]+dy3*str->c[n+y1+z1+x1+4])))
++            +xg2*zg2/36*(
++                dzi3*(
++                    dxi3*(dyi*str->c[n+5]+dy*str->c[n+y1+5])
++                    +dx3*(dyi*str->c[n+x1+5]+dy*str->c[n+y1+x1+5]))
++                +dz3*(
++                    dxi3*(dyi*str->c[n+z1+5]+dy*str->c[n+y1+z1+5])
++                    +dx3*(dyi*str->c[n+x1+z1+5]+dy*str->c[n+y1+z1+x1+5])))
++            +yg2*zg2/36*(
++                dzi3*(
++                    dxi*(dyi3*str->c[n+6]+dy3*str->c[n+y1+6])
++                    +dx*(dyi3*str->c[n+x1+6]+dy3*str->c[n+y1+x1+6]))
++                +dz3*(
++                    dxi*(dyi3*str->c[n+z1+6]+dy3*str->c[n+y1+z1+6])
++                    +dx*(dyi3*str->c[n+x1+z1+6]+dy3*str->c[n+y1+z1+x1+6])))
++            +xg2*yg2*zg2/216*(
++                dzi3*(
++                    dxi3*(dyi3*str->c[n+7]+dy3*str->c[n+y1+7])
++                    +dx3*(dyi3*str->c[n+x1+7]+dy3*str->c[n+y1+x1+7]))
++                +dz3*(
++                    dxi3*(dyi3*str->c[n+z1+7]+dy3*str->c[n+y1+z1+7])
++                    +dx3*(dyi3*str->c[n+x1+z1+7]+dy3*str->c[n+y1+z1+x1+7])));
++
++    }
++
++    return err;
++}
++
++static inline real interp3Dcomp_eval_f_precomputed(
++    const real* c,
++    int n, int x1, int y1, int z1,
++    real dxi, real dx, real dxi3, real dx3,
++    real dyi, real dy, real dyi3, real dy3,
++    real dzi, real dz, real dzi3, real dz3,
++    real xg2, real yg2, real zg2) {
++    return (
++        dzi*(
++            dxi*(dyi*c[n+0]+dy*c[n+y1+0])
++            +dx*(dyi*c[n+x1+0]+dy*c[n+y1+x1+0]))
++        +dz*(
++            dxi*(dyi*c[n+z1+0]+dy*c[n+y1+z1+0])
++            +dx*(dyi*c[n+x1+z1+0]+dy*c[n+y1+z1+x1+0])))
++        +xg2/6*(
++            dzi*(
++                dxi3*(dyi*c[n+1]+dy*c[n+y1+1])
++                +dx3*(dyi*c[n+x1+1]+dy*c[n+y1+x1+1]))
++            +dz*(
++                dxi3*(dyi*c[n+z1+1]+dy*c[n+y1+z1+1])
++                +dx3*(dyi*c[n+x1+z1+1]+dy*c[n+y1+z1+x1+1])))
++        +yg2/6*(
++            dzi*(
++                dxi*(dyi3*c[n+2]+dy3*c[n+y1+2])
++                +dx*(dyi3*c[n+x1+2]+dy3*c[n+y1+x1+2]))
++            +dz*(
++                dxi*(dyi3*c[n+z1+2]+dy3*c[n+y1+z1+2])
++                +dx*(dyi3*c[n+x1+z1+2]+dy3*c[n+y1+z1+x1+2])))
++        +zg2/6*(
++            dzi3*(
++                dxi*(dyi*c[n+3]+dy*c[n+y1+3])
++                +dx*(dyi*c[n+x1+3]+dy*c[n+y1+x1+3]))
++            +dz3*(
++                dxi*(dyi*c[n+z1+3]+dy*c[n+y1+z1+3])
++                +dx*(dyi*c[n+x1+z1+3]+dy*c[n+y1+z1+x1+3])))
++        +xg2*yg2/36*(
++            dzi*(
++                dxi3*(dyi3*c[n+4]+dy3*c[n+y1+4])
++                +dx3*(dyi3*c[n+x1+4]+dy3*c[n+y1+x1+4]))
++            +dz*(
++                dxi3*(dyi3*c[n+z1+4]+dy3*c[n+y1+z1+4])
++                +dx3*(dyi3*c[n+x1+z1+4]+dy3*c[n+y1+z1+x1+4])))
++        +xg2*zg2/36*(
++            dzi3*(
++                dxi3*(dyi*c[n+5]+dy*c[n+y1+5])
++                +dx3*(dyi*c[n+x1+5]+dy*c[n+y1+x1+5]))
++            +dz3*(
++                dxi3*(dyi*c[n+z1+5]+dy*c[n+y1+z1+5])
++                +dx3*(dyi*c[n+x1+z1+5]+dy*c[n+y1+z1+x1+5])))
++        +yg2*zg2/36*(
++            dzi3*(
++                dxi*(dyi3*c[n+6]+dy3*c[n+y1+6])
++                +dx*(dyi3*c[n+x1+6]+dy3*c[n+y1+x1+6]))
++            +dz3*(
++                dxi*(dyi3*c[n+z1+6]+dy3*c[n+y1+z1+6])
++                +dx*(dyi3*c[n+x1+z1+6]+dy3*c[n+y1+z1+x1+6])))
++        +xg2*yg2*zg2/216*(
++            dzi3*(
++                dxi3*(dyi3*c[n+7]+dy3*c[n+y1+7])
++                +dx3*(dyi3*c[n+x1+7]+dy3*c[n+y1+x1+7]))
++            +dz3*(
++                dxi3*(dyi3*c[n+z1+7]+dy3*c[n+y1+z1+7])
++                +dx3*(dyi3*c[n+x1+z1+7]+dy3*c[n+y1+z1+x1+7])));
++}
++
++static inline void interp3Dcomp_eval_df4_precomputed(real* f_df,
++                                                      const real* c,
++                                                      int n, int x1, int y1,
++                                                      int z1,
++                                                      real dxi, real dx,
++                                                      real dxi3, real dx3,
++                                                      real dxi3dx,
++                                                      real dx3dx,
++                                                      real dyi, real dy,
++                                                      real dyi3, real dy3,
++                                                      real dyi3dy,
++                                                      real dy3dy,
++                                                      real dzi, real dz,
++                                                      real dzi3, real dz3,
++                                                      real dzi3dz,
++                                                      real dz3dz,
++                                                      real xg, real xg2,
++                                                      real xgi,
++                                                      real yg, real yg2,
++                                                      real ygi,
++                                                      real zg, real zg2,
++                                                      real zgi) {
++    /* Fetch coefficients explicitly to improve memory locality and reuse. */
++    real c0000 = c[n+0];
++    real c0001 = c[n+1];
++    real c0002 = c[n+2];
++    real c0003 = c[n+3];
++    real c0004 = c[n+4];
++    real c0005 = c[n+5];
++    real c0006 = c[n+6];
++    real c0007 = c[n+7];
++
++    real c0010 = c[n+x1+0];
++    real c0011 = c[n+x1+1];
++    real c0012 = c[n+x1+2];
++    real c0013 = c[n+x1+3];
++    real c0014 = c[n+x1+4];
++    real c0015 = c[n+x1+5];
++    real c0016 = c[n+x1+6];
++    real c0017 = c[n+x1+7];
++
++    real c0100 = c[n+y1+0];
++    real c0101 = c[n+y1+1];
++    real c0102 = c[n+y1+2];
++    real c0103 = c[n+y1+3];
++    real c0104 = c[n+y1+4];
++    real c0105 = c[n+y1+5];
++    real c0106 = c[n+y1+6];
++    real c0107 = c[n+y1+7];
++
++    real c1000 = c[n+z1+0];
++    real c1001 = c[n+z1+1];
++    real c1002 = c[n+z1+2];
++    real c1003 = c[n+z1+3];
++    real c1004 = c[n+z1+4];
++    real c1005 = c[n+z1+5];
++    real c1006 = c[n+z1+6];
++    real c1007 = c[n+z1+7];
++
++    real c0110 = c[n+y1+x1+0];
++    real c0111 = c[n+y1+x1+1];
++    real c0112 = c[n+y1+x1+2];
++    real c0113 = c[n+y1+x1+3];
++    real c0114 = c[n+y1+x1+4];
++    real c0115 = c[n+y1+x1+5];
++    real c0116 = c[n+y1+x1+6];
++    real c0117 = c[n+y1+x1+7];
++
++    real c1010 = c[n+z1+x1+0];
++    real c1011 = c[n+z1+x1+1];
++    real c1012 = c[n+z1+x1+2];
++    real c1013 = c[n+z1+x1+3];
++    real c1014 = c[n+z1+x1+4];
++    real c1015 = c[n+z1+x1+5];
++    real c1016 = c[n+z1+x1+6];
++    real c1017 = c[n+z1+x1+7];
++
++    real c1100 = c[n+z1+y1+0];
++    real c1101 = c[n+z1+y1+1];
++    real c1102 = c[n+z1+y1+2];
++    real c1103 = c[n+z1+y1+3];
++    real c1104 = c[n+z1+y1+4];
++    real c1105 = c[n+z1+y1+5];
++    real c1106 = c[n+z1+y1+6];
++    real c1107 = c[n+z1+y1+7];
++
++    real c1110 = c[n+z1+y1+x1+0];
++    real c1111 = c[n+z1+y1+x1+1];
++    real c1112 = c[n+z1+y1+x1+2];
++    real c1113 = c[n+z1+y1+x1+3];
++    real c1114 = c[n+z1+y1+x1+4];
++    real c1115 = c[n+z1+y1+x1+5];
++    real c1116 = c[n+z1+y1+x1+6];
++    real c1117 = c[n+z1+y1+x1+7];
++
++    /* f */
++    f_df[0] = (
++           dzi*(
++               dxi*(dyi*c0000+dy*c0100)
++               +dx*(dyi*c0010+dy*c0110))
++           +dz*(
++               dxi*(dyi*c1000+dy*c1100)
++               +dx*(dyi*c1010+dy*c1110)))
++    +xg2/6*(
++        dzi*(
++            dxi3*(dyi*c0001+dy*c0101)
++            +dx3*(dyi*c0011+dy*c0111))
++        +dz*(
++            dxi3*(dyi*c1001+dy*c1101)
++            +dx3*(dyi*c1011+dy*c1111)))
++    +yg2/6*(
++        dzi*(
++            dxi*(dyi3*c0002+dy3*c0102)
++            +dx*(dyi3*c0012+dy3*c0112))
++        +dz*(
++            dxi*(dyi3*c1002+dy3*c1102)
++            +dx*(dyi3*c1012+dy3*c1112)))
++    +zg2/6*(
++        dzi3*(
++            dxi*(dyi*c0003+dy*c0103)
++            +dx*(dyi*c0013+dy*c0113))
++        +dz3*(
++            dxi*(dyi*c1003+dy*c1103)
++            +dx*(dyi*c1013+dy*c1113)))
++    +xg2*yg2/36*(
++        dzi*(
++            dxi3*(dyi3*c0004+dy3*c0104)
++            +dx3*(dyi3*c0014+dy3*c0114))
++        +dz*(
++            dxi3*(dyi3*c1004+dy3*c1104)
++            +dx3*(dyi3*c1014+dy3*c1114)))
++    +xg2*zg2/36*(
++        dzi3*(
++            dxi3*(dyi*c0005+dy*c0105)
++            +dx3*(dyi*c0015+dy*c0115))
++        +dz3*(
++            dxi3*(dyi*c1005+dy*c1105)
++            +dx3*(dyi*c1015+dy*c1115)))
++    +yg2*zg2/36*(
++        dzi3*(
++            dxi*(dyi3*c0006+dy3*c0106)
++            +dx*(dyi3*c0016+dy3*c0116))
++        +dz3*(
++            dxi*(dyi3*c1006+dy3*c1106)
++            +dx*(dyi3*c1016+dy3*c1116)))
++    +xg2*yg2*zg2/216*(
++        dzi3*(
++            dxi3*(dyi3*c0007+dy3*c0107)
++            +dx3*(dyi3*c0017+dy3*c0117))
++        +dz3*(
++            dxi3*(dyi3*c1007+dy3*c1107)
++            +dx3*(dyi3*c1017+dy3*c1117)));
++
++    /* df/dx */
++    f_df[1] = xgi*(
++        dzi*(
++            -(dyi*c0000+dy*c0100)
++            +(dyi*c0010+dy*c0110))
++        +dz*(
++            -(dyi*c1000+dy*c1100)
++            +(dyi*c1010+dy*c1110)))
++        +xg/6*(
++            dzi*(
++                dxi3dx*(dyi*c0001+dy*c0101)
++                +dx3dx*(dyi*c0011+dy*c0111))
++            +dz*(
++                dxi3dx*(dyi*c1001  +dy*c1101)
++                +dx3dx*(dyi*c1011+dy*c1111)))
++        +xgi*yg2/6*(
++            dzi*(
++                -(dyi3*c0002+dy3*c0102)
++                +(dyi3*c0012+dy3*c0112))
++            +dz*(
++                -(dyi3*c1002+dy3*c1102)
++                +(dyi3*c1012+dy3*c1112)))
++        +xgi*zg2/6*(
++            dzi3*(
++                -(dyi*c0003+dy*c0103)
++                +(dyi*c0013+dy*c0113))
++            +dz3*(
++                -(dyi*c1003+dy*c1103)
++                +(dyi*c1013+dy*c1113)))
++        +xg*yg2/36*(
++            dzi*(
++                dxi3dx*(dyi3*c0004+dy3*c0104)
++                +dx3dx*(dyi3*c0014+dy3*c0114))
++            +dz*(
++                dxi3dx*(dyi3*c1004+dy3*c1104)
++                +dx3dx*(dyi3*c1014+dy3*c1114)))
++        +xg*zg2/36*(
++            dzi3*(
++                dxi3dx*(dyi*c0005+dy*c0105)
++                +dx3dx*(dyi*c0015+dy*c0115))
++            +dz3*(
++                dxi3dx*(dyi*c1005+dy*c1105)
++                +dx3dx*(dyi*c1015+dy*c1115)))
++        +xgi*yg2*zg2/36*(
++            dzi3*(
++                -(dyi3*c0006+dy3*c0106)
++                +(dyi3*c0016+dy3*c0116))
++            +dz3*(
++                -(dyi3*c1006+dy3*c1106)
++                +(dyi3*c1016+dy3*c1116)))
++        +xg*yg2*zg2/216*(
++            dzi3*(
++                dxi3dx*(dyi3*c0007+dy3*c0107)
++                +dx3dx*(dyi3*c0017+dy3*c0117))
++            +dz3*(
++                dxi3dx*(dyi3*c1007+dy3*c1107)
++                +dx3dx*(dyi3*c1017+dy3*c1117)));
++
++    /* df/dy */
++    f_df[2] = ygi*(
++        dzi*(
++            dxi*(-c0000+c0100)
++            +dx*(-c0010+c0110))
++        +dz*(
++            dxi*(-c1000+c1100)
++            +dx*(-c1010+c1110)))
++        +ygi*xg2/6*(
++            dzi*(
++                dxi3*(-c0001+c0101)
++                +dx3*(-c0011+c0111))
++            +dz*(
++                dxi3*(-c1001+c1101)
++                +dx3*(-c1011+c1111)))
++        +yg/6*(
++            dzi*(
++                dxi*(dyi3dy*c0002+dy3dy*c0102)
++                +dx*(dyi3dy*c0012+dy3dy*c0112))
++            +dz*(
++                dxi*(dyi3dy*c1002+dy3dy*c1102)
++                +dx*(dyi3dy*c1012+dy3dy*c1112)))
++        +ygi*zg2/6*(
++            dzi3*(
++                dxi*(-c0003+c0103)
++                +dx*(-c0013+c0113))
++            +dz3*(
++                dxi*(-c1003+c1103)
++                +dx*(-c1013+c1113)))
++        +xg2*yg/36*(
++            dzi*(
++                dxi3*(dyi3dy*c0004+dy3dy*c0104)
++                +dx3*(dyi3dy*c0014+dy3dy*c0114))
++            +dz*(
++                dxi3*(dyi3dy*c1004+dy3dy*c1104)
++                +dx3*(dyi3dy*c1014+dy3dy*c1114)))
++        +ygi*xg2*zg2/36*(
++            dzi3*(
++                dxi3*(-c0005+c0105)
++                +dx3*(-c0015+c0115))
++            +dz3*(
++                dxi3*(-c1005+c1105)
++                +dx3*(-c1015+c1115)))
++        +yg*zg2/36*(
++            dzi3*(
++                dxi*(dyi3dy*c0006+dy3dy*c0106)
++                +dx*(dyi3dy*c0016+dy3dy*c0116))
++            +dz3*(
++                dxi*(dyi3dy*c1006+dy3dy*c1106)
++                +dx*(dyi3dy*c1016+dy3dy*c1116)))
++        +xg2*yg*zg2/216*(
++            dzi3*(
++                dxi3*(dyi3dy*c0007+dy3dy*c0107)
++                +dx3*(dyi3dy*c0017+dy3dy*c0117))
++            +dz3*(
++                dxi3*(dyi3dy*c1007+dy3dy*c1107)
++                +dx3*(dyi3dy*c1017+dy3dy*c1117)));
++
++    /* df/dz */
++    f_df[3] = zgi*(
++        -(
++            dxi*(dyi*c0000+dy*c0100)
++            +dx*(dyi*c0010+dy*c0110))
++        +(
++            dxi*(dyi*c1000+dy*c1100)
++            +dx*(dyi*c1010+dy*c1110)))
++        +xg2*zgi/6*(
++            -(
++                dxi3*(dyi*c0001+dy*c0101)
++                +dx3*(dyi*c0011+dy*c0111))
++            +(
++                dxi3*(dyi*c1001+dy*c1101)
++                +dx3*(dyi*c1011+dy*c1111)))
++        +yg2*zgi/6*(
++            -(
++                dxi*(dyi3*c0002+dy3*c0102)
++                +dx*(dyi3*c0012+dy3*c0112))
++            +(
++                dxi*(dyi3*c1002+dy3*c1102)
++                +dx*(dyi3*c1012+dy3*c1112)))
++        +zg/6*(
++            dzi3dz*(
++                dxi*(dyi*c0003+dy*c0103)
++                +dx*(dyi*c0013+dy*c0113))
++            +dz3dz*(
++                dxi*(dyi*c1003+dy*c1103)
++                +dx*(dyi*c1013+dy*c1113)))
++        +xg2*yg2*zgi/36*(
++            -(
++                dxi3*(dyi3*c0004+dy3*c0104)
++                +dx3*(dyi3*c0014+dy3*c0114))
++            +(
++                dxi3*(dyi3*c1004+dy3*c1104)
++                +dx3*(dyi3*c1014+dy3*c1114)))
++        +xg2*zg/36*(
++            dzi3dz*(
++                dxi3*(dyi*c0005+dy*c0105)
++                +dx3*(dyi*c0015+dy*c0115))
++            +dz3dz*(
++                dxi3*(dyi*c1005+dy*c1105)
++                +dx3*(dyi*c1015+dy*c1115)))
++        +yg2*zg/36*(
++            dzi3dz*(
++                dxi*(dyi3*c0006+dy3*c0106)
++                +dx*(dyi3*c0016+dy3*c0116))
++            +dz3dz*(
++                dxi*(dyi3*c1006+dy3*c1106)
++                +dx*(dyi3*c1016+dy3*c1116)))
++        +xg2*yg2*zg/216*(
++            dzi3dz*(
++                dxi3*(dyi3*c0007+dy3*c0107)
++                +dx3*(dyi3*c0017+dy3*c0117))
++            +dz3dz*(
++                dxi3*(dyi3*c1007+dy3*c1107)
++                +dx3*(dyi3*c1017+dy3*c1117)));
++}
++
++/**
++ * @brief Evaluate interpolated values for three 3D scalar fields at once.
++ *
++ * This function shares coordinate normalization, index lookup, and basis
++ * setup across three compact tricubic spline fields.
++ */
++a5err interp3Dcomp_eval_f3(real f[3],
++                           interp3D_data* str0,
++                           interp3D_data* str1,
++                           interp3D_data* str2,
++                           real x, real y, real z) {
++    interp3D_data* str = str0;
++
++    /* Make sure periodic coordinates are within [min, max] region. */
++    if(str->bc_x == PERIODICBC) {
++        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
++        x = x + (x < str->x_min) * (str->x_max - str->x_min);
++    }
++    if(str->bc_y == PERIODICBC) {
++        y = fmod(y - str->y_min, str->y_max - str->y_min) + str->y_min;
++        y = y + (y < str->y_min) * (str->y_max - str->y_min);
++    }
++    if(str->bc_z == PERIODICBC) {
++        z = fmod(z - str->z_min, str->z_max - str->z_min) + str->z_min;
++        z = z + (z < str->z_min) * (str->z_max - str->z_min);
++    }
++
++    /* Index for x variable. The -1 needed at exactly grid end. */
++    int i_x   = (x - str->x_min) / str->x_grid - 1*(x==str->x_max);
++    real dx   = (x - (str->x_min + i_x*str->x_grid)) / str->x_grid;
++    real dxi  = 1.0 - dx;
++    real dx3  = dx*dx*dx - dx;
++    real dxi3 = (1.0 - dx) * (1.0 - dx) * (1.0 - dx) - (1.0 - dx);
++    real xg2  = str->x_grid*str->x_grid;
++
++    /* Index for y variable. The -1 needed at exactly grid end. */
++    int i_y   = (y - str->y_min) / str->y_grid - 1*(y==str->y_max);
++    real dy   = (y - (str->y_min + i_y*str->y_grid)) / str->y_grid;
++    real dyi  = 1.0 - dy;
++    real dy3  = dy*dy*dy - dy;
++    real dyi3 = (1.0 - dy) * (1.0 - dy) * (1.0 - dy) - (1.0 - dy);
++    real yg2  = str->y_grid*str->y_grid;
++
++    /* Index for z variable. The -1 needed at exactly grid end. */
++    int i_z   = (z - str->z_min) / str->z_grid - 1*(z==str->z_max);
++    real dz   = (z - (str->z_min + i_z*str->z_grid)) / str->z_grid;
++    real dzi  = 1.0 - dz;
++    real dz3  = dz*dz*dz - dz;
++    real dzi3 = (1.0 - dz) * (1.0 - dz) * (1.0 - dz) - (1.0-dz);
++    real zg2  = str->z_grid*str->z_grid;
++
++    int n  = i_z*str->n_y*str->n_x*8 + i_y*str->n_x*8 + i_x*8;
++    int x1 = 8;
++    int y1 = str->n_x*8;
++    int z1 = str->n_y*str->n_x*8;
++
++    int err = 0;
++
++    /* Enforce periodic BC or check that the coordinate is within the domain. */
++    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
++        x1 = -(str->n_x-1)*x1;
++    }
++    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
++        err = 1;
++    }
++    if( str->bc_y == PERIODICBC && i_y == str->n_y-1 ) {
++        y1 = -(str->n_y-1)*y1;
++    }
++    else if( str->bc_y == NATURALBC && !(y >= str->y_min && y <= str->y_max) ) {
++        err = 1;
++    }
++    if( str->bc_z == PERIODICBC && i_z == str->n_z-1 ) {
++        z1 = -(str->n_z-1)*z1;
++    }
++    else if( str->bc_z == NATURALBC && !(z >= str->z_min && z <= str->z_max) ) {
++        err = 1;
++    }
++
++    if(!err) {
++        const real* c0 = str0->c;
++        const real* c1 = str1->c;
++        const real* c2 = str2->c;
++        f[0] = interp3Dcomp_eval_f_precomputed(
++            c0, n, x1, y1, z1,
++            dxi, dx, dxi3, dx3,
++            dyi, dy, dyi3, dy3,
++            dzi, dz, dzi3, dz3,
++            xg2, yg2, zg2);
++        f[1] = interp3Dcomp_eval_f_precomputed(
++            c1, n, x1, y1, z1,
++            dxi, dx, dxi3, dx3,
++            dyi, dy, dyi3, dy3,
++            dzi, dz, dzi3, dz3,
++            xg2, yg2, zg2);
++        f[2] = interp3Dcomp_eval_f_precomputed(
++            c2, n, x1, y1, z1,
++            dxi, dx, dxi3, dx3,
++            dyi, dy, dyi3, dy3,
++            dzi, dz, dzi3, dz3,
++            xg2, yg2, zg2);
++    }
++
++    return err;
++}
++
++/**
++ * @brief Evaluate interpolated value of 3D field and 1st derivatives
++ *
++ * This function is a lighter variant of interp3Dcomp_eval_df and returns only
++ * f and first derivatives.
++ *
++ * The evaluated values are returned in an array with following elements:
++ * - f_df[0] = f
++ * - f_df[1] = f_x
++ * - f_df[2] = f_y
++ * - f_df[3] = f_z
++ *
++ * @param f_df array in which to place the evaluated values
++ * @param str data struct for data interpolation
++ * @param x x-coordinate
++ * @param y y-coordinate
++ * @param z z-coordinate
++ *
++ * @return zero on success and one if (x,y,z) point is outside the grid.
++ */
++a5err interp3Dcomp_eval_df4(real* f_df, interp3D_data* str,
++                            real x, real y, real z) {
++
++    /* Make sure periodic coordinates are within [min, max] region. */
++    if(str->bc_x == PERIODICBC) {
++        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
++        x = x + (x < str->x_min) * (str->x_max - str->x_min);
++    }
++    if(str->bc_y == PERIODICBC) {
++        y = fmod(y - str->y_min, str->y_max - str->y_min) + str->y_min;
++        y = y + (y < str->y_min) * (str->y_max - str->y_min);
++    }
++    if(str->bc_z == PERIODICBC) {
++        z = fmod(z - str->z_min, str->z_max - str->z_min) + str->z_min;
++        z = z + (z < str->z_min) * (str->z_max - str->z_min);
++    }
++
++    /* Index for x variable. The -1 needed at exactly grid end. */
++    int i_x     = (x - str->x_min) / str->x_grid - 1*(x==str->x_max);
++    /* Normalized x coordinate in current cell */
++    real dx     = ( x - (str->x_min + i_x*str->x_grid) ) / str->x_grid;
++    /* Helper variables */
++    real dx3    = dx*dx*dx - dx;
++    real dx3dx  = 3*dx*dx - 1.0;
++    real dxi    = 1.0 - dx;
++    real dxi3   = dxi*dxi*dxi - dxi;
++    real dxi3dx = -3*dxi*dxi + 1.0;
++    real xg     = str->x_grid;
++    real xg2    = xg*xg;
++    real xgi    = 1.0 / xg;
++
++    /* Index for y variable. The -1 needed at exactly grid end. */
++    int i_y     = (y - str->y_min) / str->y_grid - 1*(y==str->y_max);
++    /* Normalized y coordinate in current cell */
++    real dy     = ( y - (str->y_min + i_y*str->y_grid) ) / str->y_grid;
++    /* Helper variables */
++    real dy3    = dy*dy*dy-dy;
++    real dy3dy  = 3*dy*dy - 1.0;
++    real dyi    = 1.0 - dy;
++    real dyi3   = dyi*dyi*dyi - dyi;
++    real dyi3dy = -3*dyi*dyi + 1.0;
++    real yg     = str->y_grid;
++    real yg2    = yg*yg;
++    real ygi    = 1.0 / yg;
++
++    /* Index for z variable. The -1 needed at exactly grid end. */
++    int i_z     = (z - str->z_min) / str->z_grid - 1*(z==str->z_max);
++    /* Normalized z coordinate in current cell */
++    real dz     = ( z - (str->z_min + i_z*str->z_grid) ) / str->z_grid;
++    /* Helper variables */
++    real dz3    = dz*dz*dz - dz;
++    real dz3dz  = 3*dz*dz - 1.0;
++    real dzi    = 1.0 - dz;
++    real dzi3   = dzi*dzi*dzi - dzi;
++    real dzi3dz = -3*dzi*dzi + 1.0;
++    real zg     = str->z_grid;
++    real zg2    = zg*zg;
++    real zgi    = 1.0 / zg;
++
++    /* Index jump to cell */
++    int n  = i_z*str->n_y*str->n_x*8 + i_y*str->n_x*8 + i_x*8;
++    int x1 = 8;                   /* Index jump one x forward */
++    int y1 = str->n_x*8;          /* Index jump one y forward */
++    int z1 = str->n_y*str->n_x*8; /* Index jump one z forward */
++
++    int err = 0;
++
++    /* Enforce periodic BC or check that the coordinate is within the domain. */
++    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
++        x1 = -(str->n_x-1)*x1;
++    }
++    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
++        err = 1;
++    }
++    if( str->bc_y == PERIODICBC && i_y == str->n_y-1 ) {
++        y1 = -(str->n_y-1)*y1;
++    }
++    else if( str->bc_y == NATURALBC && !(y >= str->y_min && y <= str->y_max) ) {
++        err = 1;
++    }
++    if( str->bc_z == PERIODICBC && i_z == str->n_z-1 ) {
++        z1 = -(str->n_z-1)*z1;
++    }
++    else if( str->bc_z == NATURALBC && !(z >= str->z_min && z <= str->z_max) ) {
++        err = 1;
++    }
++
++    if(!err) {
++
++        /* Fetch coefficients explicitly to fetch those that are adjacent
++           subsequently and to store in temporary variables coefficients that
++           will be used multiple times. */
++        real c0000 = str->c[n+0];
++        real c0001 = str->c[n+1];
++        real c0002 = str->c[n+2];
++        real c0003 = str->c[n+3];
++        real c0004 = str->c[n+4];
++        real c0005 = str->c[n+5];
++        real c0006 = str->c[n+6];
++        real c0007 = str->c[n+7];
++
++        real c0010 = str->c[n+x1+0];
++        real c0011 = str->c[n+x1+1];
++        real c0012 = str->c[n+x1+2];
++        real c0013 = str->c[n+x1+3];
++        real c0014 = str->c[n+x1+4];
++        real c0015 = str->c[n+x1+5];
++        real c0016 = str->c[n+x1+6];
++        real c0017 = str->c[n+x1+7];
+ 
+-        /* Evaluate spline value */
+-        *f = (
++        real c0100 = str->c[n+y1+0];
++        real c0101 = str->c[n+y1+1];
++        real c0102 = str->c[n+y1+2];
++        real c0103 = str->c[n+y1+3];
++        real c0104 = str->c[n+y1+4];
++        real c0105 = str->c[n+y1+5];
++        real c0106 = str->c[n+y1+6];
++        real c0107 = str->c[n+y1+7];
++
++        real c1000 = str->c[n+z1+0];
++        real c1001 = str->c[n+z1+1];
++        real c1002 = str->c[n+z1+2];
++        real c1003 = str->c[n+z1+3];
++        real c1004 = str->c[n+z1+4];
++        real c1005 = str->c[n+z1+5];
++        real c1006 = str->c[n+z1+6];
++        real c1007 = str->c[n+z1+7];
++
++        real c0110 = str->c[n+y1+x1+0];
++        real c0111 = str->c[n+y1+x1+1];
++        real c0112 = str->c[n+y1+x1+2];
++        real c0113 = str->c[n+y1+x1+3];
++        real c0114 = str->c[n+y1+x1+4];
++        real c0115 = str->c[n+y1+x1+5];
++        real c0116 = str->c[n+y1+x1+6];
++        real c0117 = str->c[n+y1+x1+7];
++
++        real c1010 = str->c[n+z1+x1+0];
++        real c1011 = str->c[n+z1+x1+1];
++        real c1012 = str->c[n+z1+x1+2];
++        real c1013 = str->c[n+z1+x1+3];
++        real c1014 = str->c[n+z1+x1+4];
++        real c1015 = str->c[n+z1+x1+5];
++        real c1016 = str->c[n+z1+x1+6];
++        real c1017 = str->c[n+z1+x1+7];
++
++        real c1100 = str->c[n+z1+y1+0];
++        real c1101 = str->c[n+z1+y1+1];
++        real c1102 = str->c[n+z1+y1+2];
++        real c1103 = str->c[n+z1+y1+3];
++        real c1104 = str->c[n+z1+y1+4];
++        real c1105 = str->c[n+z1+y1+5];
++        real c1106 = str->c[n+z1+y1+6];
++        real c1107 = str->c[n+z1+y1+7];
++
++        real c1110 = str->c[n+z1+y1+x1+0];
++        real c1111 = str->c[n+z1+y1+x1+1];
++        real c1112 = str->c[n+z1+y1+x1+2];
++        real c1113 = str->c[n+z1+y1+x1+3];
++        real c1114 = str->c[n+z1+y1+x1+4];
++        real c1115 = str->c[n+z1+y1+x1+5];
++        real c1116 = str->c[n+z1+y1+x1+6];
++        real c1117 = str->c[n+z1+y1+x1+7];
++
++          /* f */
++          f_df[0] = (
++               dzi*(
++                   dxi*(dyi*c0000+dy*c0100)
++                   +dx*(dyi*c0010+dy*c0110))
++               +dz*(
++                   dxi*(dyi*c1000+dy*c1100)
++                   +dx*(dyi*c1010+dy*c1110)))
++        +xg2/6*(
+             dzi*(
+-                dxi*(dyi*str->c[n+0]+dy*str->c[n+y1+0])
+-                +dx*(dyi*str->c[n+x1+0]+dy*str->c[n+y1+x1+0]))
++                dxi3*(dyi*c0001+dy*c0101)
++                +dx3*(dyi*c0011+dy*c0111))
+             +dz*(
+-                dxi*(dyi*str->c[n+z1+0]+dy*str->c[n+y1+z1+0])
+-                +dx*(dyi*str->c[n+x1+z1+0]+dy*str->c[n+y1+z1+x1+0])))
+-            +xg2/6*(
++                dxi3*(dyi*c1001+dy*c1101)
++                +dx3*(dyi*c1011+dy*c1111)))
++        +yg2/6*(
++            dzi*(
++                dxi*(dyi3*c0002+dy3*c0102)
++                +dx*(dyi3*c0012+dy3*c0112))
++            +dz*(
++                dxi*(dyi3*c1002+dy3*c1102)
++                +dx*(dyi3*c1012+dy3*c1112)))
++        +zg2/6*(
++            dzi3*(
++                dxi*(dyi*c0003+dy*c0103)
++                +dx*(dyi*c0013+dy*c0113))
++            +dz3*(
++                dxi*(dyi*c1003+dy*c1103)
++                +dx*(dyi*c1013+dy*c1113)))
++        +xg2*yg2/36*(
++            dzi*(
++                dxi3*(dyi3*c0004+dy3*c0104)
++                +dx3*(dyi3*c0014+dy3*c0114))
++            +dz*(
++                dxi3*(dyi3*c1004+dy3*c1104)
++                +dx3*(dyi3*c1014+dy3*c1114)))
++        +xg2*zg2/36*(
++            dzi3*(
++                dxi3*(dyi*c0005+dy*c0105)
++                +dx3*(dyi*c0015+dy*c0115))
++            +dz3*(
++                dxi3*(dyi*c1005+dy*c1105)
++                +dx3*(dyi*c1015+dy*c1115)))
++        +yg2*zg2/36*(
++            dzi3*(
++                dxi*(dyi3*c0006+dy3*c0106)
++                +dx*(dyi3*c0016+dy3*c0116))
++            +dz3*(
++                dxi*(dyi3*c1006+dy3*c1106)
++                +dx*(dyi3*c1016+dy3*c1116)))
++        +xg2*yg2*zg2/216*(
++            dzi3*(
++                dxi3*(dyi3*c0007+dy3*c0107)
++                +dx3*(dyi3*c0017+dy3*c0117))
++            +dz3*(
++                dxi3*(dyi3*c1007+dy3*c1107)
++                +dx3*(dyi3*c1017+dy3*c1117)));
++
++        /* df/dx */
++        f_df[1] = xgi*(
++            dzi*(
++                -(dyi*c0000+dy*c0100)
++                +(dyi*c0010+dy*c0110))
++            +dz*(
++                -(dyi*c1000+dy*c1100)
++                +(dyi*c1010+dy*c1110)))
++            +xg/6*(
+                 dzi*(
+-                    dxi3*(dyi*str->c[n+1]+dy*str->c[n+y1+1])
+-                    +dx3*(dyi*str->c[n+x1+1]+dy*str->c[n+y1+x1+1]))
++                    dxi3dx*(dyi*c0001+dy*c0101)
++                    +dx3dx*(dyi*c0011+dy*c0111))
+                 +dz*(
+-                    dxi3*(dyi*str->c[n+z1+1]+dy*str->c[n+y1+z1+1])
+-                    +dx3*(dyi*str->c[n+x1+z1+1]+dy*str->c[n+y1+z1+x1+1])))
+-            +yg2/6*(
++                    dxi3dx*(dyi*c1001  +dy*c1101)
++                    +dx3dx*(dyi*c1011+dy*c1111)))
++            +xgi*yg2/6*(
+                 dzi*(
+-                    dxi*(dyi3*str->c[n+2]+dy3*str->c[n+y1+2])
+-                    +dx*(dyi3*str->c[n+x1+2]+dy3*str->c[n+y1+x1+2]))
++                    -(dyi3*c0002+dy3*c0102)
++                    +(dyi3*c0012+dy3*c0112))
+                 +dz*(
+-                    dxi*(dyi3*str->c[n+z1+2]+dy3*str->c[n+y1+z1+2])
+-                    +dx*(dyi3*str->c[n+x1+z1+2]+dy3*str->c[n+y1+z1+x1+2])))
+-            +zg2/6*(
++                    -(dyi3*c1002+dy3*c1102)
++                    +(dyi3*c1012+dy3*c1112)))
++            +xgi*zg2/6*(
+                 dzi3*(
+-                    dxi*(dyi*str->c[n+3]+dy*str->c[n+y1+3])
+-                    +dx*(dyi*str->c[n+x1+3]+dy*str->c[n+y1+x1+3]))
++                    -(dyi*c0003+dy*c0103)
++                    +(dyi*c0013+dy*c0113))
+                 +dz3*(
+-                    dxi*(dyi*str->c[n+z1+3]+dy*str->c[n+y1+z1+3])
+-                    +dx*(dyi*str->c[n+x1+z1+3]+dy*str->c[n+y1+z1+x1+3])))
+-            +xg2*yg2/36*(
++                    -(dyi*c1003+dy*c1103)
++                    +(dyi*c1013+dy*c1113)))
++            +xg*yg2/36*(
+                 dzi*(
+-                    dxi3*(dyi3*str->c[n+4]+dy3*str->c[n+y1+4])
+-                    +dx3*(dyi3*str->c[n+x1+4]+dy3*str->c[n+y1+x1+4]))
++                    dxi3dx*(dyi3*c0004+dy3*c0104)
++                    +dx3dx*(dyi3*c0014+dy3*c0114))
+                 +dz*(
+-                    dxi3*(dyi3*str->c[n+z1+4]+dy3*str->c[n+y1+z1+4])
+-                    +dx3*(dyi3*str->c[n+x1+z1+4]+dy3*str->c[n+y1+z1+x1+4])))
+-            +xg2*zg2/36*(
++                    dxi3dx*(dyi3*c1004+dy3*c1104)
++                    +dx3dx*(dyi3*c1014+dy3*c1114)))
++            +xg*zg2/36*(
+                 dzi3*(
+-                    dxi3*(dyi*str->c[n+5]+dy*str->c[n+y1+5])
+-                    +dx3*(dyi*str->c[n+x1+5]+dy*str->c[n+y1+x1+5]))
++                    dxi3dx*(dyi*c0005+dy*c0105)
++                    +dx3dx*(dyi*c0015+dy*c0115))
+                 +dz3*(
+-                    dxi3*(dyi*str->c[n+z1+5]+dy*str->c[n+y1+z1+5])
+-                    +dx3*(dyi*str->c[n+x1+z1+5]+dy*str->c[n+y1+z1+x1+5])))
+-            +yg2*zg2/36*(
++                    dxi3dx*(dyi*c1005+dy*c1105)
++                    +dx3dx*(dyi*c1015+dy*c1115)))
++            +xgi*yg2*zg2/36*(
+                 dzi3*(
+-                    dxi*(dyi3*str->c[n+6]+dy3*str->c[n+y1+6])
+-                    +dx*(dyi3*str->c[n+x1+6]+dy3*str->c[n+y1+x1+6]))
++                    -(dyi3*c0006+dy3*c0106)
++                    +(dyi3*c0016+dy3*c0116))
+                 +dz3*(
+-                    dxi*(dyi3*str->c[n+z1+6]+dy3*str->c[n+y1+z1+6])
+-                    +dx*(dyi3*str->c[n+x1+z1+6]+dy3*str->c[n+y1+z1+x1+6])))
+-            +xg2*yg2*zg2/216*(
++                    -(dyi3*c1006+dy3*c1106)
++                    +(dyi3*c1016+dy3*c1116)))
++            +xg*yg2*zg2/216*(
+                 dzi3*(
+-                    dxi3*(dyi3*str->c[n+7]+dy3*str->c[n+y1+7])
+-                    +dx3*(dyi3*str->c[n+x1+7]+dy3*str->c[n+y1+x1+7]))
++                    dxi3dx*(dyi3*c0007+dy3*c0107)
++                    +dx3dx*(dyi3*c0017+dy3*c0117))
+                 +dz3*(
+-                    dxi3*(dyi3*str->c[n+z1+7]+dy3*str->c[n+y1+z1+7])
+-                    +dx3*(dyi3*str->c[n+x1+z1+7]+dy3*str->c[n+y1+z1+x1+7])));
++                    dxi3dx*(dyi3*c1007+dy3*c1107)
++                    +dx3dx*(dyi3*c1017+dy3*c1117)));
++
++        /* df/dy */
++        f_df[2] = ygi*(
++            dzi*(
++                dxi*(-c0000+c0100)
++                +dx*(-c0010+c0110))
++            +dz*(
++                dxi*(-c1000+c1100)
++                +dx*(-c1010+c1110)))
++            +ygi*xg2/6*(
++                dzi*(
++                    dxi3*(-c0001+c0101)
++                    +dx3*(-c0011+c0111))
++                +dz*(
++                    dxi3*(-c1001+c1101)
++                    +dx3*(-c1011+c1111)))
++            +yg/6*(
++                dzi*(
++                    dxi*(dyi3dy*c0002+dy3dy*c0102)
++                    +dx*(dyi3dy*c0012+dy3dy*c0112))
++                +dz*(
++                    dxi*(dyi3dy*c1002+dy3dy*c1102)
++                    +dx*(dyi3dy*c1012+dy3dy*c1112)))
++            +ygi*zg2/6*(
++                dzi3*(
++                    dxi*(-c0003+c0103)
++                    +dx*(-c0013+c0113))
++                +dz3*(
++                    dxi*(-c1003+c1103)
++                    +dx*(-c1013+c1113)))
++            +xg2*yg/36*(
++                dzi*(
++                    dxi3*(dyi3dy*c0004+dy3dy*c0104)
++                    +dx3*(dyi3dy*c0014+dy3dy*c0114))
++                +dz*(
++                    dxi3*(dyi3dy*c1004+dy3dy*c1104)
++                    +dx3*(dyi3dy*c1014+dy3dy*c1114)))
++            +ygi*xg2*zg2/36*(
++                dzi3*(
++                    dxi3*(-c0005+c0105)
++                    +dx3*(-c0015+c0115))
++                +dz3*(
++                    dxi3*(-c1005+c1105)
++                    +dx3*(-c1015+c1115)))
++            +yg*zg2/36*(
++                dzi3*(
++                    dxi*(dyi3dy*c0006+dy3dy*c0106)
++                    +dx*(dyi3dy*c0016+dy3dy*c0116))
++                +dz3*(
++                    dxi*(dyi3dy*c1006+dy3dy*c1106)
++                    +dx*(dyi3dy*c1016+dy3dy*c1116)))
++            +xg2*yg*zg2/216*(
++                dzi3*(
++                    dxi3*(dyi3dy*c0007+dy3dy*c0107)
++                    +dx3*(dyi3dy*c0017+dy3dy*c0117))
++                +dz3*(
++                    dxi3*(dyi3dy*c1007+dy3dy*c1107)
++                    +dx3*(dyi3dy*c1017+dy3dy*c1117)));
+ 
++        /* df/dz */
++        f_df[3] = zgi*(
++            -(
++                dxi*(dyi*c0000+dy*c0100)
++                +dx*(dyi*c0010+dy*c0110))
++            +(
++                dxi*(dyi*c1000+dy*c1100)
++                +dx*(dyi*c1010+dy*c1110)))
++            +xg2*zgi/6*(
++                -(
++                    dxi3*(dyi*c0001+dy*c0101)
++                    +dx3*(dyi*c0011+dy*c0111))
++                +(
++                    dxi3*(dyi*c1001+dy*c1101)
++                    +dx3*(dyi*c1011+dy*c1111)))
++            +yg2*zgi/6*(
++                -(
++                    dxi*(dyi3*c0002+dy3*c0102)
++                    +dx*(dyi3*c0012+dy3*c0112))
++                +(
++                    dxi*(dyi3*c1002+dy3*c1102)
++                    +dx*(dyi3*c1012+dy3*c1112)))
++            +zg/6*(
++                dzi3dz*(
++                    dxi*(dyi*c0003+dy*c0103)
++                    +dx*(dyi*c0013+dy*c0113))
++                +dz3dz*(
++                    dxi*(dyi*c1003+dy*c1103)
++                    +dx*(dyi*c1013+dy*c1113)))
++            +xg2*yg2*zgi/36*(
++                -(
++                    dxi3*(dyi3*c0004+dy3*c0104)
++                    +dx3*(dyi3*c0014+dy3*c0114))
++                +(
++                    dxi3*(dyi3*c1004+dy3*c1104)
++                    +dx3*(dyi3*c1014+dy3*c1114)))
++            +xg2*zg/36*(
++                dzi3dz*(
++                    dxi3*(dyi*c0005+dy*c0105)
++                    +dx3*(dyi*c0015+dy*c0115))
++                +dz3dz*(
++                    dxi3*(dyi*c1005+dy*c1105)
++                    +dx3*(dyi*c1015+dy*c1115)))
++            +yg2*zg/36*(
++                dzi3dz*(
++                    dxi*(dyi3*c0006+dy3*c0106)
++                    +dx*(dyi3*c0016+dy3*c0116))
++                +dz3dz*(
++                    dxi*(dyi3*c1006+dy3*c1106)
++                    +dx*(dyi3*c1016+dy3*c1116)))
++            +xg2*yg2*zg/216*(
++                dzi3dz*(
++                    dxi3*(dyi3*c0007+dy3*c0107)
++                    +dx3*(dyi3*c0017+dy3*c0117))
++                +dz3dz*(
++                    dxi3*(dyi3*c1007+dy3*c1107)
++                    +dx3*(dyi3*c1017+dy3*c1117)));
+     }
+ 
+     return err;
+@@ -1118,3 +2035,131 @@ a5err interp3Dcomp_eval_df(real* f_df, interp3D_data* str,
+ 
+     return err;
+ }
++
++/**
++ * @brief Evaluate f and 1st derivatives (f_x, f_y, f_z) for three 3D fields.
++ *
++ * This mirrors interp3Dcomp_eval_f3: shared setup once, then three per-field
++ * evaluations through a precomputed helper.
++ */
++a5err interp3Dcomp_eval_df4_3(real f_df0[4],
++                              real f_df1[4],
++                              real f_df2[4],
++                              interp3D_data* str0,
++                              interp3D_data* str1,
++                              interp3D_data* str2,
++                              real x, real y, real z) {
++    interp3D_data* str = str0;
++
++    /* Make sure periodic coordinates are within [min, max] region. (shared) */
++    if(str->bc_x == PERIODICBC) {
++        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
++        x = x + (x < str->x_min) * (str->x_max - str->x_min);
++    }
++    if(str->bc_y == PERIODICBC) {
++        y = fmod(y - str->y_min, str->y_max - str->y_min) + str->y_min;
++        y = y + (y < str->y_min) * (str->y_max - str->y_min);
++    }
++    if(str->bc_z == PERIODICBC) {
++        z = fmod(z - str->z_min, str->z_max - str->z_min) + str->z_min;
++        z = z + (z < str->z_min) * (str->z_max - str->z_min);
++    }
++
++    /* Index and normalized coords. (shared) */
++    int i_x     = (x - str->x_min) / str->x_grid - 1*(x==str->x_max);
++    real dx     = ( x - (str->x_min + i_x*str->x_grid) ) / str->x_grid;
++    real dx3    = dx*dx*dx - dx;
++    real dx3dx  = 3*dx*dx - 1.0;
++    real dxi    = 1.0 - dx;
++    real dxi3   = dxi*dxi*dxi - dxi;
++    real dxi3dx = -3*dxi*dxi + 1.0;
++    real xg     = str->x_grid;
++    real xg2    = xg*xg;
++    real xgi    = 1.0 / xg;
++
++    int i_y     = (y - str->y_min) / str->y_grid - 1*(y==str->y_max);
++    real dy     = ( y - (str->y_min + i_y*str->y_grid) ) / str->y_grid;
++    real dy3    = dy*dy*dy-dy;
++    real dy3dy  = 3*dy*dy - 1.0;
++    real dyi    = 1.0 - dy;
++    real dyi3   = dyi*dyi*dyi - dyi;
++    real dyi3dy = -3*dyi*dyi + 1.0;
++    real yg     = str->y_grid;
++    real yg2    = yg*yg;
++    real ygi    = 1.0 / yg;
++
++    int i_z     = (z - str->z_min) / str->z_grid - 1*(z==str->z_max);
++    real dz     = ( z - (str->z_min + i_z*str->z_grid) ) / str->z_grid;
++    real dz3    = dz*dz*dz - dz;
++    real dz3dz  = 3*dz*dz - 1.0;
++    real dzi    = 1.0 - dz;
++    real dzi3   = dzi*dzi*dzi - dzi;
++    real dzi3dz = -3*dzi*dzi + 1.0;
++    real zg     = str->z_grid;
++    real zg2    = zg*zg;
++    real zgi    = 1.0 / zg;
++
++    /* Index jump to cell (shared) */
++    int n  = i_z*str->n_y*str->n_x*8 + i_y*str->n_x*8 + i_x*8;
++    int x1 = 8;
++    int y1 = str->n_x*8;
++    int z1 = str->n_y*str->n_x*8;
++
++    int err = 0;
++
++    /* Enforce periodic BC or check that the coordinate is within the domain. */
++    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
++        x1 = -(str->n_x-1)*x1;
++    }
++    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
++        err = 1;
++    }
++    if( str->bc_y == PERIODICBC && i_y == str->n_y-1 ) {
++        y1 = -(str->n_y-1)*y1;
++    }
++    else if( str->bc_y == NATURALBC && !(y >= str->y_min && y <= str->y_max) ) {
++        err = 1;
++    }
++    if( str->bc_z == PERIODICBC && i_z == str->n_z-1 ) {
++        z1 = -(str->n_z-1)*z1;
++    }
++    else if( str->bc_z == NATURALBC && !(z >= str->z_min && z <= str->z_max) ) {
++        err = 1;
++    }
++
++    if(!err) {
++        const real* c0 = str0->c;
++        const real* c1 = str1->c;
++        const real* c2 = str2->c;
++
++        interp3Dcomp_eval_df4_precomputed(
++            f_df0, c0,
++            n, x1, y1, z1,
++            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
++            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
++            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
++            xg, xg2, xgi,
++            yg, yg2, ygi,
++            zg, zg2, zgi);
++        interp3Dcomp_eval_df4_precomputed(
++            f_df1, c1,
++            n, x1, y1, z1,
++            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
++            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
++            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
++            xg, xg2, xgi,
++            yg, yg2, ygi,
++            zg, zg2, zgi);
++        interp3Dcomp_eval_df4_precomputed(
++            f_df2, c2,
++            n, x1, y1, z1,
++            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
++            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
++            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
++            xg, xg2, xgi,
++            yg, yg2, ygi,
++            zg, zg2, zgi);
++    }
++
++    return err;
++}
+diff --git a/src/unit_tests/test_spline.c b/src/unit_tests/test_spline.c
+index 6200590a8..f1027e210 100644
+--- a/src/unit_tests/test_spline.c
++++ b/src/unit_tests/test_spline.c
+@@ -465,6 +465,8 @@ int test_interp3D(real* err_df, int anl_func, int rep, int n_rnd,
+     real err_f = 0.0;
+     real df_anl[10]; /* Function value and derivatives */
+     real df_spl[10];
++    real df4_spl[4];
++    real err_df4_consistency = 0.0;
+     for(int i = 0; i < n_rnd; i++) {
+         /* Draw random point */
+         x_rnd = x_min + (real)rand()/(real)RAND_MAX*(x_max-x_min);
+@@ -536,6 +538,7 @@ int test_interp3D(real* err_df, int anl_func, int rep, int n_rnd,
+             start = clock();
+             interp3Dcomp_eval_f(&f_spl, &str, x_rnd, y_rnd, z_rnd);
+             interp3Dcomp_eval_df(df_spl, &str, x_rnd, y_rnd, z_rnd);
++            interp3Dcomp_eval_df4(df4_spl, &str, x_rnd, y_rnd, z_rnd);
+             end = clock();
+         }
+         cpu_time[1] = cpu_time[1] + ((double) (end-start))/CLOCKS_PER_SEC;
+@@ -544,12 +547,30 @@ int test_interp3D(real* err_df, int anl_func, int rep, int n_rnd,
+         for(int j = 0; j < 10; j++) {
+             err_df[j] += fabs(df_anl[j]-df_spl[j]);
+         }
++        if(rep == COMP) {
++            for(int j = 0; j < 4; j++) {
++                err_df4_consistency += fabs(df_spl[j] - df4_spl[j]);
++            }
++        }
+     }
+     /* Average and print error */
+     err_f /= n_rnd;
+     for(int j = 0; j < 10; j++) {
+         err_df[j] /= n_rnd;
+     }
++    if(rep == COMP) {
++        err_df4_consistency /= (n_rnd * 4);
++        if(err_df4_consistency > 1e-12) {
++            printf("3D COMP consistency check failed: avg |df-df4| = %le\n",
++                   err_df4_consistency);
++            free(x);
++            free(y);
++            free(z);
++            free(f_inp);
++            free(c);
++            return 1;
++        }
++    }
+ 
+     /* Free allocated memory */
+     free(x);
