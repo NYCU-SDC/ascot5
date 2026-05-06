@@ -106,35 +106,22 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
 
         /* Volume preserving algorithm for orbit-following */
         if(sim->enable_orbfol) {
+            int fuse_endcond = !sim->enable_clmbcol && !sim->enable_atomic;
+            if(fuse_endcond) cputime = A5_WTIME;
             if(sim->enable_mhd) {
-                if(!sim->enable_clmbcol && !sim->enable_atomic) {
-                    cputime = A5_WTIME;
-                    step_fo_vpa_mhd_endcond(
-                        &p, &p0, hin, &sim->B_data, &sim->E_data,
-                        &sim->boozer_data, &sim->mhd_data, sim,
-                        cputime - cputime_last, sim->enable_aldforce,
-                        sim->reverse_time);
-                    cputime_last = cputime;
-                }
-                else {
-                    step_fo_vpa_mhd(
-                        &p, &p0, hin, &sim->B_data, &sim->E_data,
-                        &sim->boozer_data,
-                        &sim->mhd_data, sim->enable_aldforce, sim->reverse_time);
-                }
-            }
-            else if(!sim->enable_clmbcol && !sim->enable_atomic) {
-                cputime = A5_WTIME;
-                step_fo_vpa_endcond(
-                    &p, &p0, hin, &sim->B_data, &sim->E_data, sim,
-                    cputime - cputime_last, sim->enable_aldforce,
-                    sim->reverse_time);
-                cputime_last = cputime;
+                step_fo_vpa_mhd(
+                    &p, &p0, hin, &sim->B_data, &sim->E_data,
+                    &sim->boozer_data, &sim->mhd_data,
+                    sim, cputime - cputime_last, fuse_endcond,
+                    sim->enable_aldforce, sim->reverse_time);
             }
             else {
-                step_fo_vpa(&p, &p0, hin, &sim->B_data, &sim->E_data,
-                            sim->enable_aldforce, sim->reverse_time);
+                step_fo_vpa(
+                    &p, &p0, hin, &sim->B_data, &sim->E_data,
+                    sim, cputime - cputime_last, fuse_endcond,
+                    sim->enable_aldforce, sim->reverse_time);
             }
+            if(fuse_endcond) cputime_last = cputime;
         }
         else {
             /* Keep p0 updated for diagnostics/endcond paths when orbfol is off. */
@@ -157,7 +144,7 @@ void simulate_fo_fixed(particle_queue* pq, sim_data* sim, int mrk_array_size) {
         /**********************************************************************/
 
         /* Check possible end conditions (also advances marker times). */
-        if(!(sim->enable_orbfol && !sim->enable_mhd &&
+        if(!(sim->enable_orbfol &&
              !sim->enable_clmbcol && !sim->enable_atomic)) {
             cputime = A5_WTIME;
             endcond_check_fo(&p, &p0, hin, cputime - cputime_last, sim);
