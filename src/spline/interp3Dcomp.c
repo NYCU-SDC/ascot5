@@ -430,62 +430,135 @@ static inline real interp3Dcomp_eval_f_precomputed(
     real dyi, real dy, real dyi3, real dy3,
     real dzi, real dz, real dzi3, real dz3,
     real xg2, real yg2, real zg2) {
+    /* Preload all 64 coefficients to batch gathers and avoid aliasing reloads. */
+    real c0000 = c[n+0];
+    real c0001 = c[n+1];
+    real c0002 = c[n+2];
+    real c0003 = c[n+3];
+    real c0004 = c[n+4];
+    real c0005 = c[n+5];
+    real c0006 = c[n+6];
+    real c0007 = c[n+7];
+
+    real c0010 = c[n+x1+0];
+    real c0011 = c[n+x1+1];
+    real c0012 = c[n+x1+2];
+    real c0013 = c[n+x1+3];
+    real c0014 = c[n+x1+4];
+    real c0015 = c[n+x1+5];
+    real c0016 = c[n+x1+6];
+    real c0017 = c[n+x1+7];
+
+    real c0100 = c[n+y1+0];
+    real c0101 = c[n+y1+1];
+    real c0102 = c[n+y1+2];
+    real c0103 = c[n+y1+3];
+    real c0104 = c[n+y1+4];
+    real c0105 = c[n+y1+5];
+    real c0106 = c[n+y1+6];
+    real c0107 = c[n+y1+7];
+
+    real c1000 = c[n+z1+0];
+    real c1001 = c[n+z1+1];
+    real c1002 = c[n+z1+2];
+    real c1003 = c[n+z1+3];
+    real c1004 = c[n+z1+4];
+    real c1005 = c[n+z1+5];
+    real c1006 = c[n+z1+6];
+    real c1007 = c[n+z1+7];
+
+    real c0110 = c[n+y1+x1+0];
+    real c0111 = c[n+y1+x1+1];
+    real c0112 = c[n+y1+x1+2];
+    real c0113 = c[n+y1+x1+3];
+    real c0114 = c[n+y1+x1+4];
+    real c0115 = c[n+y1+x1+5];
+    real c0116 = c[n+y1+x1+6];
+    real c0117 = c[n+y1+x1+7];
+
+    real c1010 = c[n+z1+x1+0];
+    real c1011 = c[n+z1+x1+1];
+    real c1012 = c[n+z1+x1+2];
+    real c1013 = c[n+z1+x1+3];
+    real c1014 = c[n+z1+x1+4];
+    real c1015 = c[n+z1+x1+5];
+    real c1016 = c[n+z1+x1+6];
+    real c1017 = c[n+z1+x1+7];
+
+    real c1100 = c[n+z1+y1+0];
+    real c1101 = c[n+z1+y1+1];
+    real c1102 = c[n+z1+y1+2];
+    real c1103 = c[n+z1+y1+3];
+    real c1104 = c[n+z1+y1+4];
+    real c1105 = c[n+z1+y1+5];
+    real c1106 = c[n+z1+y1+6];
+    real c1107 = c[n+z1+y1+7];
+
+    real c1110 = c[n+z1+y1+x1+0];
+    real c1111 = c[n+z1+y1+x1+1];
+    real c1112 = c[n+z1+y1+x1+2];
+    real c1113 = c[n+z1+y1+x1+3];
+    real c1114 = c[n+z1+y1+x1+4];
+    real c1115 = c[n+z1+y1+x1+5];
+    real c1116 = c[n+z1+y1+x1+6];
+    real c1117 = c[n+z1+y1+x1+7];
+
     return (
         dzi*(
-            dxi*(dyi*c[n+0]+dy*c[n+y1+0])
-            +dx*(dyi*c[n+x1+0]+dy*c[n+y1+x1+0]))
+            dxi*(dyi*c0000+dy*c0100)
+            +dx*(dyi*c0010+dy*c0110))
         +dz*(
-            dxi*(dyi*c[n+z1+0]+dy*c[n+y1+z1+0])
-            +dx*(dyi*c[n+x1+z1+0]+dy*c[n+y1+z1+x1+0])))
+            dxi*(dyi*c1000+dy*c1100)
+            +dx*(dyi*c1010+dy*c1110)))
         +xg2/6*(
             dzi*(
-                dxi3*(dyi*c[n+1]+dy*c[n+y1+1])
-                +dx3*(dyi*c[n+x1+1]+dy*c[n+y1+x1+1]))
+                dxi3*(dyi*c0001+dy*c0101)
+                +dx3*(dyi*c0011+dy*c0111))
             +dz*(
-                dxi3*(dyi*c[n+z1+1]+dy*c[n+y1+z1+1])
-                +dx3*(dyi*c[n+x1+z1+1]+dy*c[n+y1+z1+x1+1])))
+                dxi3*(dyi*c1001+dy*c1101)
+                +dx3*(dyi*c1011+dy*c1111)))
         +yg2/6*(
             dzi*(
-                dxi*(dyi3*c[n+2]+dy3*c[n+y1+2])
-                +dx*(dyi3*c[n+x1+2]+dy3*c[n+y1+x1+2]))
+                dxi*(dyi3*c0002+dy3*c0102)
+                +dx*(dyi3*c0012+dy3*c0112))
             +dz*(
-                dxi*(dyi3*c[n+z1+2]+dy3*c[n+y1+z1+2])
-                +dx*(dyi3*c[n+x1+z1+2]+dy3*c[n+y1+z1+x1+2])))
+                dxi*(dyi3*c1002+dy3*c1102)
+                +dx*(dyi3*c1012+dy3*c1112)))
         +zg2/6*(
             dzi3*(
-                dxi*(dyi*c[n+3]+dy*c[n+y1+3])
-                +dx*(dyi*c[n+x1+3]+dy*c[n+y1+x1+3]))
+                dxi*(dyi*c0003+dy*c0103)
+                +dx*(dyi*c0013+dy*c0113))
             +dz3*(
-                dxi*(dyi*c[n+z1+3]+dy*c[n+y1+z1+3])
-                +dx*(dyi*c[n+x1+z1+3]+dy*c[n+y1+z1+x1+3])))
+                dxi*(dyi*c1003+dy*c1103)
+                +dx*(dyi*c1013+dy*c1113)))
         +xg2*yg2/36*(
             dzi*(
-                dxi3*(dyi3*c[n+4]+dy3*c[n+y1+4])
-                +dx3*(dyi3*c[n+x1+4]+dy3*c[n+y1+x1+4]))
+                dxi3*(dyi3*c0004+dy3*c0104)
+                +dx3*(dyi3*c0014+dy3*c0114))
             +dz*(
-                dxi3*(dyi3*c[n+z1+4]+dy3*c[n+y1+z1+4])
-                +dx3*(dyi3*c[n+x1+z1+4]+dy3*c[n+y1+z1+x1+4])))
+                dxi3*(dyi3*c1004+dy3*c1104)
+                +dx3*(dyi3*c1014+dy3*c1114)))
         +xg2*zg2/36*(
             dzi3*(
-                dxi3*(dyi*c[n+5]+dy*c[n+y1+5])
-                +dx3*(dyi*c[n+x1+5]+dy*c[n+y1+x1+5]))
+                dxi3*(dyi*c0005+dy*c0105)
+                +dx3*(dyi*c0015+dy*c0115))
             +dz3*(
-                dxi3*(dyi*c[n+z1+5]+dy*c[n+y1+z1+5])
-                +dx3*(dyi*c[n+x1+z1+5]+dy*c[n+y1+z1+x1+5])))
+                dxi3*(dyi*c1005+dy*c1105)
+                +dx3*(dyi*c1015+dy*c1115)))
         +yg2*zg2/36*(
             dzi3*(
-                dxi*(dyi3*c[n+6]+dy3*c[n+y1+6])
-                +dx*(dyi3*c[n+x1+6]+dy3*c[n+y1+x1+6]))
+                dxi*(dyi3*c0006+dy3*c0106)
+                +dx*(dyi3*c0016+dy3*c0116))
             +dz3*(
-                dxi*(dyi3*c[n+z1+6]+dy3*c[n+y1+z1+6])
-                +dx*(dyi3*c[n+x1+z1+6]+dy3*c[n+y1+z1+x1+6])))
+                dxi*(dyi3*c1006+dy3*c1106)
+                +dx*(dyi3*c1016+dy3*c1116)))
         +xg2*yg2*zg2/216*(
             dzi3*(
-                dxi3*(dyi3*c[n+7]+dy3*c[n+y1+7])
-                +dx3*(dyi3*c[n+x1+7]+dy3*c[n+y1+x1+7]))
+                dxi3*(dyi3*c0007+dy3*c0107)
+                +dx3*(dyi3*c0017+dy3*c0117))
             +dz3*(
-                dxi3*(dyi3*c[n+z1+7]+dy3*c[n+y1+z1+7])
-                +dx3*(dyi3*c[n+x1+z1+7]+dy3*c[n+y1+z1+x1+7])));
+                dxi3*(dyi3*c1007+dy3*c1107)
+                +dx3*(dyi3*c1017+dy3*c1117)));
 }
 
 static inline void interp3Dcomp_eval_df4_precomputed(real* f_df,
