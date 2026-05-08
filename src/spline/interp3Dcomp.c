@@ -816,58 +816,13 @@ static inline void interp3Dcomp_eval_df4_precomputed(real* f_df,
                 +dx3*(dyi3*c1017+dy3*c1117)));
 }
 
-/* Fused f evaluation for 3 fields: interleaves loads from c0/c1/c2 so the
-   memory controller can service all three streams concurrently instead of
-   sequentially, reducing effective gather latency in the SIMD hot path. */
-static inline void interp3Dcomp_eval_f3_precomputed(
-    real f[3],
-    const real* c0, const real* c1, const real* c2,
-    int n, int x1, int y1, int z1,
-    real dxi, real dx, real dxi3, real dx3,
-    real dyi, real dy, real dyi3, real dy3,
-    real dzi, real dz, real dzi3, real dz3,
-    real xg2, real yg2, real zg2) {
-
-#define LOAD3(off) \
-    real a##off = c0[n+(off)], b##off = c1[n+(off)], g##off = c2[n+(off)]; \
-    real aY##off = c0[n+y1+(off)], bY##off = c1[n+y1+(off)], gY##off = c2[n+y1+(off)]; \
-    real aX##off = c0[n+x1+(off)], bX##off = c1[n+x1+(off)], gX##off = c2[n+x1+(off)]; \
-    real aYX##off = c0[n+y1+x1+(off)], bYX##off = c1[n+y1+x1+(off)], gYX##off = c2[n+y1+x1+(off)]; \
-    real aZ##off = c0[n+z1+(off)], bZ##off = c1[n+z1+(off)], gZ##off = c2[n+z1+(off)]; \
-    real aZX##off = c0[n+z1+x1+(off)], bZX##off = c1[n+z1+x1+(off)], gZX##off = c2[n+z1+x1+(off)]; \
-    real aZY##off = c0[n+z1+y1+(off)], bZY##off = c1[n+z1+y1+(off)], gZY##off = c2[n+z1+y1+(off)]; \
-    real aZYX##off = c0[n+z1+y1+x1+(off)], bZYX##off = c1[n+z1+y1+x1+(off)], gZYX##off = c2[n+z1+y1+x1+(off)];
-
-    LOAD3(0) LOAD3(1) LOAD3(2) LOAD3(3) LOAD3(4) LOAD3(5) LOAD3(6) LOAD3(7)
-#undef LOAD3
-
-/* CS: evaluate tricubic basis sum for one field component at one coefficient
-   type (off), with explicit x/y/z direction weights (xi=complement, xw=value). */
-#define CS(P,off,xi,xw,yi,yw,zi,zw) \
-    ((zi)*((xi)*((yi)*P##off +(yw)*P##Y##off ) +(xw)*((yi)*P##X##off +(yw)*P##YX##off)) \
-    +(zw)*((xi)*((yi)*P##Z##off+(yw)*P##ZY##off) +(xw)*((yi)*P##ZX##off+(yw)*P##ZYX##off)))
-
-#define EVAL_F3(P, fout) \
-    (fout) =                   CS(P,0,dxi,dx, dyi,dy,   dzi,dz)   \
-          + xg2/6          *   CS(P,1,dxi3,dx3,dyi,dy,  dzi,dz)   \
-          + yg2/6          *   CS(P,2,dxi,dx, dyi3,dy3, dzi,dz)   \
-          + zg2/6          *   CS(P,3,dxi,dx, dyi,dy,   dzi3,dz3) \
-          + xg2*yg2/36     *   CS(P,4,dxi3,dx3,dyi3,dy3,dzi,dz)   \
-          + xg2*zg2/36     *   CS(P,5,dxi3,dx3,dyi,dy,  dzi3,dz3) \
-          + yg2*zg2/36     *   CS(P,6,dxi,dx, dyi3,dy3, dzi3,dz3) \
-          + xg2*yg2*zg2/216*   CS(P,7,dxi3,dx3,dyi3,dy3,dzi3,dz3);
-
-    EVAL_F3(a, f[0])
-    EVAL_F3(b, f[1])
-    EVAL_F3(g, f[2])
-#undef EVAL_F3
-#undef CS
-}
-
-/* Fused df4 evaluation for 3 fields: same interleaved-load strategy as
-   interp3Dcomp_eval_f3_precomputed but computes value + 3 partial derivatives
-   for each of the three component fields. */
-static inline void interp3Dcomp_eval_df4_3_precomputed(
+/* Fused 3-field helpers were removed: all 192 locals (3 fields × 8 types ×
+   8 corners) in one scope prevents AVX-512 vectorization of the outer particle
+   loop (would need 192 ZMM registers; only 32 available). The callers below
+   use interp3Dcomp_eval_df4_precomputed / interp3Dcomp_eval_f_precomputed
+   called three times; each scope has only 64 locals and vectorizes cleanly. */
+#if 0
+static inline void interp3Dcomp_eval_df4_3_precomputed_removed(
     real* f_df0, real* f_df1, real* f_df2,
     const real* c0, const real* c1, const real* c2,
     int n, int x1, int y1, int z1,
@@ -1125,6 +1080,7 @@ static inline void interp3Dcomp_eval_df4_3_precomputed(
     EVAL_DF4(g, f_df2)
 #undef EVAL_DF4
 }
+#endif /* 0 */
 
 /**
  * @brief Evaluate interpolated values for three 3D scalar fields at once.
@@ -1205,9 +1161,20 @@ a5err interp3Dcomp_eval_f3(real f[3],
     }
 
     if(!err) {
-        interp3Dcomp_eval_f3_precomputed(
-            f, str0->c, str1->c, str2->c,
-            n, x1, y1, z1,
+        f[0] = interp3Dcomp_eval_f_precomputed(
+            str0->c, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3,
+            dyi, dy, dyi3, dy3,
+            dzi, dz, dzi3, dz3,
+            xg2, yg2, zg2);
+        f[1] = interp3Dcomp_eval_f_precomputed(
+            str1->c, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3,
+            dyi, dy, dyi3, dy3,
+            dzi, dz, dzi3, dz3,
+            xg2, yg2, zg2);
+        f[2] = interp3Dcomp_eval_f_precomputed(
+            str2->c, n, x1, y1, z1,
             dxi, dx, dxi3, dx3,
             dyi, dy, dyi3, dy3,
             dzi, dz, dzi3, dz3,
@@ -2424,16 +2391,24 @@ a5err interp3Dcomp_eval_df4_3(real f_df0[4],
     }
 
     if(!err) {
-        interp3Dcomp_eval_df4_3_precomputed(
-            f_df0, f_df1, f_df2,
-            str0->c, str1->c, str2->c,
-            n, x1, y1, z1,
+        interp3Dcomp_eval_df4_precomputed(
+            f_df0, str0->c, n, x1, y1, z1,
             dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
             dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
             dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
-            xg, xg2, xgi,
-            yg, yg2, ygi,
-            zg, zg2, zgi);
+            xg, xg2, xgi, yg, yg2, ygi, zg, zg2, zgi);
+        interp3Dcomp_eval_df4_precomputed(
+            f_df1, str1->c, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
+            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
+            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
+            xg, xg2, xgi, yg, yg2, ygi, zg, zg2, zgi);
+        interp3Dcomp_eval_df4_precomputed(
+            f_df2, str2->c, n, x1, y1, z1,
+            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
+            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
+            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
+            xg, xg2, xgi, yg, yg2, ygi, zg, zg2, zgi);
     }
 
     return err;
