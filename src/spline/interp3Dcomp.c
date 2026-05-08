@@ -510,15 +510,6 @@ static inline void interp3Dcomp_eval_df4_precomputed(real* f_df,
                                                       real ygi,
                                                       real zg, real zg2,
                                                       real zgi) {
-    /* Prefetch the three far-corner cache lines before loading nearer ones.
-       x+1 (x1=8) is already in the adjacent cache line and gets hardware
-       streaming prefetch for free; y+1, z+1, and z+1+y+1 are 12.8 KB,
-       2.56 MB, and 2.57 MB away — genuine L3 misses for scattered particles.
-       Issuing prefetches here lets L3 fetches overlap with loading corners 0-1. */
-    __builtin_prefetch(c + n + y1,       0, 1);
-    __builtin_prefetch(c + n + z1,       0, 1);
-    __builtin_prefetch(c + n + z1 + y1,  0, 1);
-
     /* Fetch coefficients explicitly to improve memory locality and reuse. */
     real c0000 = c[n+0];
     real c0001 = c[n+1];
