@@ -350,12 +350,16 @@ int wall_3d_hit_wall(real r1, real phi1, real z1, real r2, real phi2,
     int hit_tri = 0;
     real smallest_w = 1.1;
 
-    for(int i = 0; i <= math_iabs(ix2-ix1); i++) {
-        for(int j = 0; j <= math_iabs(iy2-iy1); j++) {
-            for(int k = 0; k <= math_iabs(iz2-iz1); k++) {
-                int ix = ix1 + i*((int) copysign(1, ix2-ix1));
-                int iy = iy1 + j*((int) copysign(1, iy2-iy1));
-                int iz = iz1 + k*((int) copysign(1, iz2-iz1));
+    int di = math_iabs(ix2-ix1), si = (int) copysign(1, ix2-ix1);
+    int dj = math_iabs(iy2-iy1), sj = (int) copysign(1, iy2-iy1);
+    int dk = math_iabs(iz2-iz1), sk = (int) copysign(1, iz2-iz1);
+
+    for(int i = 0; i <= di; i++) {
+        for(int j = 0; j <= dj; j++) {
+            for(int k = 0; k <= dk; k++) {
+                int ix = ix1 + i*si;
+                int iy = iy1 + j*sj;
+                int iz = iz1 + k*sk;
 
                 if(ix >= 0 && ix < wdata->ngrid && iy >= 0 && iy < wdata->ngrid
                    && iz >= 0 && iz < wdata->ngrid) {

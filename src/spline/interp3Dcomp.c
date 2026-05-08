@@ -816,6 +816,316 @@ static inline void interp3Dcomp_eval_df4_precomputed(real* f_df,
                 +dx3*(dyi3*c1017+dy3*c1117)));
 }
 
+/* Fused f evaluation for 3 fields: interleaves loads from c0/c1/c2 so the
+   memory controller can service all three streams concurrently instead of
+   sequentially, reducing effective gather latency in the SIMD hot path. */
+static inline void interp3Dcomp_eval_f3_precomputed(
+    real f[3],
+    const real* c0, const real* c1, const real* c2,
+    int n, int x1, int y1, int z1,
+    real dxi, real dx, real dxi3, real dx3,
+    real dyi, real dy, real dyi3, real dy3,
+    real dzi, real dz, real dzi3, real dz3,
+    real xg2, real yg2, real zg2) {
+
+#define LOAD3(off) \
+    real a##off = c0[n+(off)], b##off = c1[n+(off)], g##off = c2[n+(off)]; \
+    real aY##off = c0[n+y1+(off)], bY##off = c1[n+y1+(off)], gY##off = c2[n+y1+(off)]; \
+    real aX##off = c0[n+x1+(off)], bX##off = c1[n+x1+(off)], gX##off = c2[n+x1+(off)]; \
+    real aYX##off = c0[n+y1+x1+(off)], bYX##off = c1[n+y1+x1+(off)], gYX##off = c2[n+y1+x1+(off)]; \
+    real aZ##off = c0[n+z1+(off)], bZ##off = c1[n+z1+(off)], gZ##off = c2[n+z1+(off)]; \
+    real aZX##off = c0[n+z1+x1+(off)], bZX##off = c1[n+z1+x1+(off)], gZX##off = c2[n+z1+x1+(off)]; \
+    real aZY##off = c0[n+z1+y1+(off)], bZY##off = c1[n+z1+y1+(off)], gZY##off = c2[n+z1+y1+(off)]; \
+    real aZYX##off = c0[n+z1+y1+x1+(off)], bZYX##off = c1[n+z1+y1+x1+(off)], gZYX##off = c2[n+z1+y1+x1+(off)];
+
+    LOAD3(0) LOAD3(1) LOAD3(2) LOAD3(3) LOAD3(4) LOAD3(5) LOAD3(6) LOAD3(7)
+#undef LOAD3
+
+/* CS: evaluate tricubic basis sum for one field component at one coefficient
+   type (off), with explicit x/y/z direction weights (xi=complement, xw=value). */
+#define CS(P,off,xi,xw,yi,yw,zi,zw) \
+    ((zi)*((xi)*((yi)*P##off +(yw)*P##Y##off ) +(xw)*((yi)*P##X##off +(yw)*P##YX##off)) \
+    +(zw)*((xi)*((yi)*P##Z##off+(yw)*P##ZY##off) +(xw)*((yi)*P##ZX##off+(yw)*P##ZYX##off)))
+
+#define EVAL_F3(P, fout) \
+    (fout) =                   CS(P,0,dxi,dx, dyi,dy,   dzi,dz)   \
+          + xg2/6          *   CS(P,1,dxi3,dx3,dyi,dy,  dzi,dz)   \
+          + yg2/6          *   CS(P,2,dxi,dx, dyi3,dy3, dzi,dz)   \
+          + zg2/6          *   CS(P,3,dxi,dx, dyi,dy,   dzi3,dz3) \
+          + xg2*yg2/36     *   CS(P,4,dxi3,dx3,dyi3,dy3,dzi,dz)   \
+          + xg2*zg2/36     *   CS(P,5,dxi3,dx3,dyi,dy,  dzi3,dz3) \
+          + yg2*zg2/36     *   CS(P,6,dxi,dx, dyi3,dy3, dzi3,dz3) \
+          + xg2*yg2*zg2/216*   CS(P,7,dxi3,dx3,dyi3,dy3,dzi3,dz3);
+
+    EVAL_F3(a, f[0])
+    EVAL_F3(b, f[1])
+    EVAL_F3(g, f[2])
+#undef EVAL_F3
+#undef CS
+}
+
+/* Fused df4 evaluation for 3 fields: same interleaved-load strategy as
+   interp3Dcomp_eval_f3_precomputed but computes value + 3 partial derivatives
+   for each of the three component fields. */
+static inline void interp3Dcomp_eval_df4_3_precomputed(
+    real* f_df0, real* f_df1, real* f_df2,
+    const real* c0, const real* c1, const real* c2,
+    int n, int x1, int y1, int z1,
+    real dxi, real dx, real dxi3, real dx3, real dxi3dx, real dx3dx,
+    real dyi, real dy, real dyi3, real dy3, real dyi3dy, real dy3dy,
+    real dzi, real dz, real dzi3, real dz3, real dzi3dz, real dz3dz,
+    real xg, real xg2, real xgi,
+    real yg, real yg2, real ygi,
+    real zg, real zg2, real zgi) {
+
+/* Load all 8 corner values for each of the 8 coefficient types from all three
+   arrays, interleaved so the memory controller sees 3 concurrent streams. */
+#define LOAD3(off) \
+    real a##off    = c0[n+(off)],       b##off    = c1[n+(off)],       g##off    = c2[n+(off)];       \
+    real aX##off   = c0[n+x1+(off)],    bX##off   = c1[n+x1+(off)],    gX##off   = c2[n+x1+(off)];    \
+    real aY##off   = c0[n+y1+(off)],    bY##off   = c1[n+y1+(off)],    gY##off   = c2[n+y1+(off)];    \
+    real aZ##off   = c0[n+z1+(off)],    bZ##off   = c1[n+z1+(off)],    gZ##off   = c2[n+z1+(off)];    \
+    real aYX##off  = c0[n+y1+x1+(off)], bYX##off  = c1[n+y1+x1+(off)], gYX##off  = c2[n+y1+x1+(off)]; \
+    real aZX##off  = c0[n+z1+x1+(off)], bZX##off  = c1[n+z1+x1+(off)], gZX##off  = c2[n+z1+x1+(off)]; \
+    real aZY##off  = c0[n+z1+y1+(off)], bZY##off  = c1[n+z1+y1+(off)], gZY##off  = c2[n+z1+y1+(off)]; \
+    real aZYX##off = c0[n+z1+y1+x1+(off)], bZYX##off = c1[n+z1+y1+x1+(off)], gZYX##off = c2[n+z1+y1+x1+(off)];
+
+    LOAD3(0) LOAD3(1) LOAD3(2) LOAD3(3) LOAD3(4) LOAD3(5) LOAD3(6) LOAD3(7)
+#undef LOAD3
+
+/* Compute one output field using coefficient prefix P (a, b, or g). */
+#define EVAL_DF4(P, fd) \
+    (fd)[0] = ( \
+           dzi*( \
+               dxi*(dyi*P##0+dy*P##Y0) \
+               +dx*(dyi*P##X0+dy*P##YX0)) \
+           +dz*( \
+               dxi*(dyi*P##Z0+dy*P##ZY0) \
+               +dx*(dyi*P##ZX0+dy*P##ZYX0))) \
+    +xg2/6*( \
+        dzi*( \
+            dxi3*(dyi*P##1+dy*P##Y1) \
+            +dx3*(dyi*P##X1+dy*P##YX1)) \
+        +dz*( \
+            dxi3*(dyi*P##Z1+dy*P##ZY1) \
+            +dx3*(dyi*P##ZX1+dy*P##ZYX1))) \
+    +yg2/6*( \
+        dzi*( \
+            dxi*(dyi3*P##2+dy3*P##Y2) \
+            +dx*(dyi3*P##X2+dy3*P##YX2)) \
+        +dz*( \
+            dxi*(dyi3*P##Z2+dy3*P##ZY2) \
+            +dx*(dyi3*P##ZX2+dy3*P##ZYX2))) \
+    +zg2/6*( \
+        dzi3*( \
+            dxi*(dyi*P##3+dy*P##Y3) \
+            +dx*(dyi*P##X3+dy*P##YX3)) \
+        +dz3*( \
+            dxi*(dyi*P##Z3+dy*P##ZY3) \
+            +dx*(dyi*P##ZX3+dy*P##ZYX3))) \
+    +xg2*yg2/36*( \
+        dzi*( \
+            dxi3*(dyi3*P##4+dy3*P##Y4) \
+            +dx3*(dyi3*P##X4+dy3*P##YX4)) \
+        +dz*( \
+            dxi3*(dyi3*P##Z4+dy3*P##ZY4) \
+            +dx3*(dyi3*P##ZX4+dy3*P##ZYX4))) \
+    +xg2*zg2/36*( \
+        dzi3*( \
+            dxi3*(dyi*P##5+dy*P##Y5) \
+            +dx3*(dyi*P##X5+dy*P##YX5)) \
+        +dz3*( \
+            dxi3*(dyi*P##Z5+dy*P##ZY5) \
+            +dx3*(dyi*P##ZX5+dy*P##ZYX5))) \
+    +yg2*zg2/36*( \
+        dzi3*( \
+            dxi*(dyi3*P##6+dy3*P##Y6) \
+            +dx*(dyi3*P##X6+dy3*P##YX6)) \
+        +dz3*( \
+            dxi*(dyi3*P##Z6+dy3*P##ZY6) \
+            +dx*(dyi3*P##ZX6+dy3*P##ZYX6))) \
+    +xg2*yg2*zg2/216*( \
+        dzi3*( \
+            dxi3*(dyi3*P##7+dy3*P##Y7) \
+            +dx3*(dyi3*P##X7+dy3*P##YX7)) \
+        +dz3*( \
+            dxi3*(dyi3*P##Z7+dy3*P##ZY7) \
+            +dx3*(dyi3*P##ZX7+dy3*P##ZYX7))); \
+    (fd)[1] = xgi*( \
+        dzi*( \
+            -(dyi*P##0+dy*P##Y0) \
+            +(dyi*P##X0+dy*P##YX0)) \
+        +dz*( \
+            -(dyi*P##Z0+dy*P##ZY0) \
+            +(dyi*P##ZX0+dy*P##ZYX0))) \
+        +xg/6*( \
+            dzi*( \
+                dxi3dx*(dyi*P##1+dy*P##Y1) \
+                +dx3dx*(dyi*P##X1+dy*P##YX1)) \
+            +dz*( \
+                dxi3dx*(dyi*P##Z1+dy*P##ZY1) \
+                +dx3dx*(dyi*P##ZX1+dy*P##ZYX1))) \
+        +xgi*yg2/6*( \
+            dzi*( \
+                -(dyi3*P##2+dy3*P##Y2) \
+                +(dyi3*P##X2+dy3*P##YX2)) \
+            +dz*( \
+                -(dyi3*P##Z2+dy3*P##ZY2) \
+                +(dyi3*P##ZX2+dy3*P##ZYX2))) \
+        +xgi*zg2/6*( \
+            dzi3*( \
+                -(dyi*P##3+dy*P##Y3) \
+                +(dyi*P##X3+dy*P##YX3)) \
+            +dz3*( \
+                -(dyi*P##Z3+dy*P##ZY3) \
+                +(dyi*P##ZX3+dy*P##ZYX3))) \
+        +xg*yg2/36*( \
+            dzi*( \
+                dxi3dx*(dyi3*P##4+dy3*P##Y4) \
+                +dx3dx*(dyi3*P##X4+dy3*P##YX4)) \
+            +dz*( \
+                dxi3dx*(dyi3*P##Z4+dy3*P##ZY4) \
+                +dx3dx*(dyi3*P##ZX4+dy3*P##ZYX4))) \
+        +xg*zg2/36*( \
+            dzi3*( \
+                dxi3dx*(dyi*P##5+dy*P##Y5) \
+                +dx3dx*(dyi*P##X5+dy*P##YX5)) \
+            +dz3*( \
+                dxi3dx*(dyi*P##Z5+dy*P##ZY5) \
+                +dx3dx*(dyi*P##ZX5+dy*P##ZYX5))) \
+        +xgi*yg2*zg2/36*( \
+            dzi3*( \
+                -(dyi3*P##6+dy3*P##Y6) \
+                +(dyi3*P##X6+dy3*P##YX6)) \
+            +dz3*( \
+                -(dyi3*P##Z6+dy3*P##ZY6) \
+                +(dyi3*P##ZX6+dy3*P##ZYX6))) \
+        +xg*yg2*zg2/216*( \
+            dzi3*( \
+                dxi3dx*(dyi3*P##7+dy3*P##Y7) \
+                +dx3dx*(dyi3*P##X7+dy3*P##YX7)) \
+            +dz3*( \
+                dxi3dx*(dyi3*P##Z7+dy3*P##ZY7) \
+                +dx3dx*(dyi3*P##ZX7+dy3*P##ZYX7))); \
+    (fd)[2] = ygi*( \
+        dzi*( \
+            dxi*(-P##0+P##Y0) \
+            +dx*(-P##X0+P##YX0)) \
+        +dz*( \
+            dxi*(-P##Z0+P##ZY0) \
+            +dx*(-P##ZX0+P##ZYX0))) \
+        +ygi*xg2/6*( \
+            dzi*( \
+                dxi3*(-P##1+P##Y1) \
+                +dx3*(-P##X1+P##YX1)) \
+            +dz*( \
+                dxi3*(-P##Z1+P##ZY1) \
+                +dx3*(-P##ZX1+P##ZYX1))) \
+        +yg/6*( \
+            dzi*( \
+                dxi*(dyi3dy*P##2+dy3dy*P##Y2) \
+                +dx*(dyi3dy*P##X2+dy3dy*P##YX2)) \
+            +dz*( \
+                dxi*(dyi3dy*P##Z2+dy3dy*P##ZY2) \
+                +dx*(dyi3dy*P##ZX2+dy3dy*P##ZYX2))) \
+        +ygi*zg2/6*( \
+            dzi3*( \
+                dxi*(-P##3+P##Y3) \
+                +dx*(-P##X3+P##YX3)) \
+            +dz3*( \
+                dxi*(-P##Z3+P##ZY3) \
+                +dx*(-P##ZX3+P##ZYX3))) \
+        +xg2*yg/36*( \
+            dzi*( \
+                dxi3*(dyi3dy*P##4+dy3dy*P##Y4) \
+                +dx3*(dyi3dy*P##X4+dy3dy*P##YX4)) \
+            +dz*( \
+                dxi3*(dyi3dy*P##Z4+dy3dy*P##ZY4) \
+                +dx3*(dyi3dy*P##ZX4+dy3dy*P##ZYX4))) \
+        +ygi*xg2*zg2/36*( \
+            dzi3*( \
+                dxi3*(-P##5+P##Y5) \
+                +dx3*(-P##X5+P##YX5)) \
+            +dz3*( \
+                dxi3*(-P##Z5+P##ZY5) \
+                +dx3*(-P##ZX5+P##ZYX5))) \
+        +yg*zg2/36*( \
+            dzi3*( \
+                dxi*(dyi3dy*P##6+dy3dy*P##Y6) \
+                +dx*(dyi3dy*P##X6+dy3dy*P##YX6)) \
+            +dz3*( \
+                dxi*(dyi3dy*P##Z6+dy3dy*P##ZY6) \
+                +dx*(dyi3dy*P##ZX6+dy3dy*P##ZYX6))) \
+        +xg2*yg*zg2/216*( \
+            dzi3*( \
+                dxi3*(dyi3dy*P##7+dy3dy*P##Y7) \
+                +dx3*(dyi3dy*P##X7+dy3dy*P##YX7)) \
+            +dz3*( \
+                dxi3*(dyi3dy*P##Z7+dy3dy*P##ZY7) \
+                +dx3*(dyi3dy*P##ZX7+dy3dy*P##ZYX7))); \
+    (fd)[3] = zgi*( \
+        -( \
+            dxi*(dyi*P##0+dy*P##Y0) \
+            +dx*(dyi*P##X0+dy*P##YX0)) \
+        +( \
+            dxi*(dyi*P##Z0+dy*P##ZY0) \
+            +dx*(dyi*P##ZX0+dy*P##ZYX0))) \
+        +xg2*zgi/6*( \
+            -( \
+                dxi3*(dyi*P##1+dy*P##Y1) \
+                +dx3*(dyi*P##X1+dy*P##YX1)) \
+            +( \
+                dxi3*(dyi*P##Z1+dy*P##ZY1) \
+                +dx3*(dyi*P##ZX1+dy*P##ZYX1))) \
+        +yg2*zgi/6*( \
+            -( \
+                dxi*(dyi3*P##2+dy3*P##Y2) \
+                +dx*(dyi3*P##X2+dy3*P##YX2)) \
+            +( \
+                dxi*(dyi3*P##Z2+dy3*P##ZY2) \
+                +dx*(dyi3*P##ZX2+dy3*P##ZYX2))) \
+        +zg/6*( \
+            dzi3dz*( \
+                dxi*(dyi*P##3+dy*P##Y3) \
+                +dx*(dyi*P##X3+dy*P##YX3)) \
+            +dz3dz*( \
+                dxi*(dyi*P##Z3+dy*P##ZY3) \
+                +dx*(dyi*P##ZX3+dy*P##ZYX3))) \
+        +xg2*yg2*zgi/36*( \
+            -( \
+                dxi3*(dyi3*P##4+dy3*P##Y4) \
+                +dx3*(dyi3*P##X4+dy3*P##YX4)) \
+            +( \
+                dxi3*(dyi3*P##Z4+dy3*P##ZY4) \
+                +dx3*(dyi3*P##ZX4+dy3*P##ZYX4))) \
+        +xg2*zg/36*( \
+            dzi3dz*( \
+                dxi3*(dyi*P##5+dy*P##Y5) \
+                +dx3*(dyi*P##X5+dy*P##YX5)) \
+            +dz3dz*( \
+                dxi3*(dyi*P##Z5+dy*P##ZY5) \
+                +dx3*(dyi*P##ZX5+dy*P##ZYX5))) \
+        +yg2*zg/36*( \
+            dzi3dz*( \
+                dxi*(dyi3*P##6+dy3*P##Y6) \
+                +dx*(dyi3*P##X6+dy3*P##YX6)) \
+            +dz3dz*( \
+                dxi*(dyi3*P##Z6+dy3*P##ZY6) \
+                +dx*(dyi3*P##ZX6+dy3*P##ZYX6))) \
+        +xg2*yg2*zg/216*( \
+            dzi3dz*( \
+                dxi3*(dyi3*P##7+dy3*P##Y7) \
+                +dx3*(dyi3*P##X7+dy3*P##YX7)) \
+            +dz3dz*( \
+                dxi3*(dyi3*P##Z7+dy3*P##ZY7) \
+                +dx3*(dyi3*P##ZX7+dy3*P##ZYX7)));
+
+    EVAL_DF4(a, f_df0)
+    EVAL_DF4(b, f_df1)
+    EVAL_DF4(g, f_df2)
+#undef EVAL_DF4
+}
+
 /**
  * @brief Evaluate interpolated values for three 3D scalar fields at once.
  *
@@ -895,23 +1205,9 @@ a5err interp3Dcomp_eval_f3(real f[3],
     }
 
     if(!err) {
-        const real* c0 = str0->c;
-        const real* c1 = str1->c;
-        const real* c2 = str2->c;
-        f[0] = interp3Dcomp_eval_f_precomputed(
-            c0, n, x1, y1, z1,
-            dxi, dx, dxi3, dx3,
-            dyi, dy, dyi3, dy3,
-            dzi, dz, dzi3, dz3,
-            xg2, yg2, zg2);
-        f[1] = interp3Dcomp_eval_f_precomputed(
-            c1, n, x1, y1, z1,
-            dxi, dx, dxi3, dx3,
-            dyi, dy, dyi3, dy3,
-            dzi, dz, dzi3, dz3,
-            xg2, yg2, zg2);
-        f[2] = interp3Dcomp_eval_f_precomputed(
-            c2, n, x1, y1, z1,
+        interp3Dcomp_eval_f3_precomputed(
+            f, str0->c, str1->c, str2->c,
+            n, x1, y1, z1,
             dxi, dx, dxi3, dx3,
             dyi, dy, dyi3, dy3,
             dzi, dz, dzi3, dz3,
@@ -2128,30 +2424,9 @@ a5err interp3Dcomp_eval_df4_3(real f_df0[4],
     }
 
     if(!err) {
-        const real* c0 = str0->c;
-        const real* c1 = str1->c;
-        const real* c2 = str2->c;
-
-        interp3Dcomp_eval_df4_precomputed(
-            f_df0, c0,
-            n, x1, y1, z1,
-            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
-            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
-            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
-            xg, xg2, xgi,
-            yg, yg2, ygi,
-            zg, zg2, zgi);
-        interp3Dcomp_eval_df4_precomputed(
-            f_df1, c1,
-            n, x1, y1, z1,
-            dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
-            dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
-            dzi, dz, dzi3, dz3, dzi3dz, dz3dz,
-            xg, xg2, xgi,
-            yg, yg2, ygi,
-            zg, zg2, zgi);
-        interp3Dcomp_eval_df4_precomputed(
-            f_df2, c2,
+        interp3Dcomp_eval_df4_3_precomputed(
+            f_df0, f_df1, f_df2,
+            str0->c, str1->c, str2->c,
             n, x1, y1, z1,
             dxi, dx, dxi3, dx3, dxi3dx, dx3dx,
             dyi, dy, dyi3, dy3, dyi3dy, dy3dy,
