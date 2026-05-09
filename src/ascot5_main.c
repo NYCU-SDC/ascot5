@@ -169,6 +169,8 @@ int main(int argc, char** argv) {
     /* Initialize marker states array ps and free marker input p */
     int n_proc; /* Number of markers allocated for this MPI process */
     particle_state* ps;
+    int n_gathered;
+    particle_state* pout = NULL;
     if( prepare_markers(&sim, n_tot, p, &ps, &n_proc) ) {
         goto CLEANUP_FAILURE;
     }
@@ -185,8 +187,6 @@ int main(int argc, char** argv) {
      * n_gathered is the number of markers in the output array, which is n_tot
      * for most cases except when the simulation is run in condor-like manner,
      * in which case it is equal to n_proc. */
-    int n_gathered;
-    particle_state* pout;
     offload_and_simulate(
         &sim, n_tot, n_proc, ps, &n_gathered, &pout);
 

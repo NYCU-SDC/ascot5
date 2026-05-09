@@ -159,7 +159,7 @@ a5err suzuki_sigmav(real* sigmav, real EperAmu, real vnorm, real ne, real te,
 
     /* Separate ions into hydrogen species and impurities and calculate
      * their total densities and Zeff */
-    real dens_H = 0.0, dens_Z = 0.0;
+    real dens_H = 0.0;
     real Zeff_sum1 = 0.0, Zeff_sum2 = 0.0;
     for(int i = 0; i < nion; i++) {
         if(znum[i] == 1) {
@@ -168,7 +168,6 @@ a5err suzuki_sigmav(real* sigmav, real EperAmu, real vnorm, real ne, real te,
             n_H++;
         } else {
             ind_Z[n_Z] = i;
-            dens_Z += ni[i];
             n_Z++;
         }
 

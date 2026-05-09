@@ -109,58 +109,6 @@ int interp1Dcomp_setup(interp1D_data* str, real* f, int n_x, int bc_x,
 }
 
 /**
- * @brief Evaluate interpolated value of 1D scalar field
- *
- * This function evaluates the interpolated value of a 1D scalar field using
- * bicubic spline interpolation coefficients of the compact form.
- *
- * @param f variable in which to place the evaluated value
- * @param str data struct for data interpolation
- * @param x x-coordinate
- *
- * @return zero on success and one if x point is outside the domain.
- */
-a5err interp1Dcomp_eval_f(real* f, interp1D_data* str, real x) {
-
-    /* Make sure periodic coordinates are within [min, max] region. */
-    if(str->bc_x == PERIODICBC) {
-        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
-        x = x + (x < str->x_min) * (str->x_max - str->x_min);
-    }
-
-    /* Index for x variable. The -1 needed at exactly grid end. */
-    int i_x   = (x-str->x_min) / str->x_grid - 1*(x==str->x_max);
-    /* Normalized x coordinate in current cell */
-    real dx   = ( x - (str->x_min + i_x*str->x_grid) ) / str->x_grid;
-    /* Helper varibles */
-    real dx3  =  dx * (dx*dx - 1.0);
-    real dxi  = 1.0 - dx;
-    real dxi3 = dxi * (dxi*dxi - 1.0);
-    real xg2  = str->x_grid*str->x_grid;
-
-    int n  = i_x*2; /* Index jump to cell       */
-    int x1 = 2;     /* Index jump one x forward */
-
-    int err = 0;
-
-    /* Enforce periodic BC or check that the coordinate is within the grid. */
-    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
-        x1 = -(str->n_x-1)*x1;
-    }
-    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
-        err = 1;
-    }
-
-    if(!err) {
-        *f =
-                      dxi *str->c[n+0]+dx *str->c[n+x1+0]
-            +(xg2/6)*(dxi3*str->c[n+1]+dx3*str->c[n+x1+1]);
-    }
-
-    return err;
-}
-
-/**
  * @brief Evaluate interpolated value of 1D and its 1st and 2nd derivatives
  *
  * This function evaluates the interpolated value of a 1D scalar field and
@@ -178,6 +126,7 @@ a5err interp1Dcomp_eval_f(real* f, interp1D_data* str, real x) {
  *
  * @return zero on success and one if (x,y) point is outside the grid.
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(str)
 a5err interp1Dcomp_eval_df(real* f_df, interp1D_data* str, real x) {
 
     /* Make sure periodic coordinates are within [min, max] region. */

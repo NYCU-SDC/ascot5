@@ -67,6 +67,7 @@ void E_TC_offload(E_TC_data* data) {
  *
  * @return Zero to indicate success
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Edata, Bdata)
 a5err E_TC_eval_E(real E[3], real r, real phi, real z, E_TC_data* Edata,
                   B_field_data* Bdata) {
     math_vec_xyz2rpz(Edata->Exyz, E, phi);

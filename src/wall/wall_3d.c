@@ -319,6 +319,7 @@ void wall_3d_init_octree(wall_3d_data* w) {
  *
  * @return id, which is the first element id if hit, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(wdata)
 int wall_3d_hit_wall(real r1, real phi1, real z1, real r2, real phi2,
             real z2, wall_3d_data* wdata, real* w_coll) {
     real rpz1[3], rpz2[3];
@@ -403,6 +404,7 @@ int wall_3d_hit_wall(real r1, real phi1, real z1, real r2, real phi2,
  *
  * @return id is wall element id if hit, zero otherwise*
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(wdata)
 int wall_3d_hit_wall_full(real r1, real phi1, real z1, real r2, real phi2,
                           real z2, wall_3d_data* wdata, real* w_coll) {
     real rpz1[3], rpz2[3];
@@ -528,6 +530,7 @@ int wall_3d_tri_in_cube(real t1[3], real t2[3], real t3[3], real bb1[3],
  *         is the intersection point. A negative number is returned if no there
  *         is no intersection
  */
+GPU_DECLARE_TARGET_SIMD
 double wall_3d_tri_collision(real q1[3], real q2[3], real t1[3], real t2[3],
             real t3[3]) {
     real q12[3], Q12[3];

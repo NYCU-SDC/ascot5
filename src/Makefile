@@ -36,7 +36,7 @@ endif
 
 ifneq ($(CC),h5cc)
 	ifneq ($(CC),h5pcc)
-		CFLAGS+=-lhdf5 -lhdf5_hl
+		LFLAGS+=-lhdf5 -lhdf5_hl
 	endif
 endif
 
@@ -47,11 +47,19 @@ ifeq ($(GPU),1)
 		CFLAGS+=-c++libs -cuda
 		CFLAGS+=-acc -Mnoopenmp
 	else ifeq ($(OMP), 1)
-		CFLAGS+= -fopenmp
+		ifneq ($(findstring icx,$(CC)),icx)
+			CFLAGS+=-fopenmp
+		else
+			CFLAGS+=-qopenmp
+		endif
 		DEFINES+=-D_OPENMP
 	endif
 else
-	CFLAGS+=-fopenmp
+	ifneq ($(findstring icx,$(CC)),icx)
+		CFLAGS+=-fopenmp
+	else
+		CFLAGS+=-qopenmp
+	endif
 endif
 
 ifeq ($(RANDOM),MKL)
@@ -91,7 +99,7 @@ endif
 # Linux/other OS adjustments
 ifeq ($(UNAME_S),Linux)
 libascot.so: CFLAGS+=-fPIC -shared
-	CFLAGS+=-lm
+	LFLAGS+=-lm
 	ifdef CONDA_PREFIX
 		CLANG2PY_ARGS=-I$(CONDA_PREFIX)/include/ \
 		  -I$(CONDA_PREFIX)/x86_64-conda-linux-gnu/sysroot/usr/include/
@@ -203,10 +211,10 @@ libascot.so: libascot.o ascot5_main.o libascot_mem.o afsi.o bbnbi5.o $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LFLAGS)
 
 ascot5_main: ascot5_main.o $(OBJS)
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) -o $@ $^ $(CFLAGS) $(LFLAGS)
 
 bbnbi5: bbnbi5_main.o $(OBJS)
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) -o $@ $^ $(CFLAGS) $(LFLAGS)
 
 doc:
 	doxygen Doxyfile

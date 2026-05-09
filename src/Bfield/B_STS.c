@@ -209,6 +209,7 @@ void B_STS_offload(B_STS_data* data) {
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_STS_eval_psi(real* psi, real r, real phi, real z,
                      B_STS_data* Bdata) {
     a5err err = 0;
@@ -241,6 +242,7 @@ a5err B_STS_eval_psi(real* psi, real r, real phi, real z,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_STS_eval_psi_dpsi(real psi_dpsi[4], real r, real phi, real z,
                           B_STS_data* Bdata) {
     a5err err = 0;
@@ -283,6 +285,7 @@ a5err B_STS_eval_psi_dpsi(real psi_dpsi[4], real r, real phi, real z,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_STS_eval_rho_drho(real rho_drho[4], real r, real phi, real z,
                           B_STS_data* Bdata) {
     a5err err = 0;
@@ -332,6 +335,7 @@ a5err B_STS_eval_rho_drho(real rho_drho[4], real r, real phi, real z,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_STS_eval_B(real B[3], real r, real phi, real z, B_STS_data* Bdata) {
     a5err err = 0;
     int interperr = interp3Dcomp_eval_f3(
@@ -364,6 +368,7 @@ a5err B_STS_eval_B(real B[3], real r, real phi, real z, B_STS_data* Bdata) {
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_STS_eval_B_dB(real B_dB[12], real r, real phi, real z,
                       B_STS_data* Bdata) {
     a5err err = 0;
@@ -397,6 +402,7 @@ a5err B_STS_eval_B_dB(real B_dB[12], real r, real phi, real z,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_STS_get_axis_rz(real rz[2], B_STS_data* Bdata, real phi) {
     a5err err = 0;
 

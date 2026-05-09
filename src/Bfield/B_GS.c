@@ -171,6 +171,7 @@ void B_GS_offload(B_GS_data* data) {
  *
  * @return zero to indicate success
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_GS_eval_psi(real* psi, real r, real phi, real z,
                     B_GS_data* Bdata) {
     /* Normalize the coordinates */
@@ -224,6 +225,7 @@ a5err B_GS_eval_psi(real* psi, real r, real phi, real z,
  *
  * @return zero to indicate success
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_GS_eval_psi_dpsi(real psi_dpsi[4], real r, real phi, real z,
                          B_GS_data* Bdata) {
 
@@ -293,6 +295,7 @@ a5err B_GS_eval_psi_dpsi(real psi_dpsi[4], real r, real phi, real z,
  *
  * @return zero to indicate success
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_GS_eval_rho_drho(real rho_drho[4], real r, real phi, real z,
                          B_GS_data* Bdata) {
     real psi_dpsi[4];
@@ -324,6 +327,7 @@ a5err B_GS_eval_rho_drho(real rho_drho[4], real r, real phi, real z,
  *
  * @return zero to indicate success
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_GS_eval_B(real B[3], real r, real phi,
                  real z, B_GS_data* Bdata) {
     /* Normalize the coordinates */
@@ -403,6 +407,7 @@ a5err B_GS_eval_B(real B[3], real r, real phi,
  *
  * @return zero to indicate success
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_GS_eval_B_dB(real B_dB[12], real r, real phi, real z,
                      B_GS_data* Bdata) {
 
@@ -554,6 +559,7 @@ a5err B_GS_eval_B_dB(real B_dB[12], real r, real phi, real z,
  *
  * @return Zero a5err value as this function can't fail.
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Bdata)
 a5err B_GS_get_axis_rz(real rz[2], B_GS_data* Bdata) {
     a5err err = 0;
     rz[0] = Bdata->raxis;

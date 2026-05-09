@@ -124,7 +124,9 @@
 #elif defined(GPU) && defined(_OPENACC)
 #define DECLARE_TARGET_SIMD
 #else
-#define DECLARE_TARGET_SIMD str_pragma(omp declare simd)
+#define DECLARE_TARGET_SIMD \
+    str_pragma(omp declare simd simdlen(NSIMD)) \
+    str_pragma(omp declare simd inbranch simdlen(NSIMD))
 #endif
 
 /**
@@ -147,7 +149,9 @@
 #elif defined(GPU) && defined(_OPENACC)
 #define GPU_DECLARE_TARGET_SIMD str_pragma(acc routine seq)
 #else
-#define GPU_DECLARE_TARGET_SIMD str_pragma(omp declare simd)
+#define GPU_DECLARE_TARGET_SIMD \
+    str_pragma(omp declare simd simdlen(NSIMD)) \
+    str_pragma(omp declare simd inbranch simdlen(NSIMD))
 #endif
 
 /**
@@ -170,7 +174,8 @@
 #define GPU_DECLARE_TARGET_SIMD_UNIFORM(...) str_pragma(acc routine seq)
 #else
 #define GPU_DECLARE_TARGET_SIMD_UNIFORM(...) \
-    str_pragma(omp declare simd uniform (__VA_ARGS__))
+    str_pragma(omp declare simd uniform (__VA_ARGS__) simdlen(NSIMD)) \
+    str_pragma(omp declare simd inbranch uniform (__VA_ARGS__) simdlen(NSIMD))
 #endif
 
 /**

@@ -84,6 +84,7 @@ void wall_2d_offload(wall_2d_data* data) {
  * @param z z coordinate [m]
  * @param w 2D wall data structure
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(w)
 int wall_2d_inside(real r, real z, wall_2d_data* w) {
     int hits = 0;
     for(int i = 0; i < w->n; i++) {
@@ -125,6 +126,7 @@ int wall_2d_inside(real r, real z, wall_2d_data* w) {
  *
  * @return wall element ID if hit, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(w)
 int wall_2d_hit_wall(real r1, real phi1, real z1, real r2, real phi2, real z2,
                      wall_2d_data* w, real* w_coll) {
     return wall_2d_find_intersection(r1, z1, r2, z2, w, w_coll);
@@ -146,6 +148,7 @@ int wall_2d_hit_wall(real r1, real phi1, real z1, real r2, real phi2, real z2,
  *
  * @return int wall element id if hit, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(w)
 int wall_2d_find_intersection(real r1, real z1, real r2, real z2,
                               wall_2d_data* w, real* w_coll) {
     int tile = 0;

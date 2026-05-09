@@ -86,6 +86,7 @@ void E_1DS_offload(E_1DS_data* data) {
  *
  * @return zero if evaluation succeeded
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(Edata, Bdata)
 a5err E_1DS_eval_E(real E[3], real r, real phi, real z, E_1DS_data* Edata,
                    B_field_data* Bdata) {
     a5err err = 0;

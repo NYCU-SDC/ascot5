@@ -11,6 +11,7 @@
  */
 #ifndef LININT_H
 #define LININT_H
+#include <math.h>
 #include "../ascot5.h"
 #include "../offload.h"
 #include "../spline/interp.h"
@@ -82,9 +83,37 @@ void linint3D_init(linint3D_data* str, real* c,
                    real y_min, real y_max,
                    real z_min, real z_max);
 
-GPU_DECLARE_TARGET_SIMD_UNIFORM(str)
-int linint1D_eval_f(real* f, linint1D_data* str, real x);
-DECLARE_TARGET_END
+static inline int linint1D_eval_f(real* f, linint1D_data* str, real x) {
+
+    /* Make sure periodic coordinates are within [max, min] region. */
+    if(str->bc_x == PERIODICBC) {
+        x = fmod(x - str->x_min, str->x_max - str->x_min) + str->x_min;
+        x = x + (x < str->x_min) * (str->x_max - str->x_min);
+    }
+
+    /* index for x variable */
+    int i_x   = (x-str->x_min) / str->x_grid;
+    /**< Normalized x coordinate in current cell */
+    real dx = ( x - (str->x_min + i_x*str->x_grid)) / str->x_grid;
+
+    int x1 = 1;   /* Index jump one x forward */
+
+    int err = 0;
+
+    /* Enforce periodic BC or check that the coordinate is within the grid. */
+    if( str->bc_x == PERIODICBC && i_x == str->n_x-1 ) {
+        x1 = -(str->n_x-1)*x1;
+    }
+    else if( str->bc_x == NATURALBC && !(x >= str->x_min && x <= str->x_max) ) {
+        err = 1;
+    }
+
+    if(!err) {
+        *f = str->c[i_x]*(1 - dx) + str->c[i_x+x1]*dx;
+    }
+    return err;
+}
+
 GPU_DECLARE_TARGET_SIMD_UNIFORM(str)
 int linint2D_eval_f(real* f, linint2D_data* str, real x, real y);
 DECLARE_TARGET_END

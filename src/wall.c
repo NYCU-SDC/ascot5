@@ -77,6 +77,7 @@ void wall_offload(wall_data* data) {
  *
  * @return wall element id if hit, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(w)
 int wall_hit_wall(real r1, real phi1, real z1, real r2, real phi2, real z2,
                   wall_data* w, real* w_coll) {
     int ret = 0;
@@ -101,6 +102,7 @@ int wall_hit_wall(real r1, real phi1, real z1, real r2, real phi2, real z2,
  *
  * @return Number of wall elements or zero on failure.
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(w)
 int wall_get_n_elements(wall_data* w) {
     int ret = 0;
     switch(w->type) {
@@ -123,6 +125,7 @@ int wall_get_n_elements(wall_data* w) {
  *
  * @return Flag of the wall element.
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(w)
 int wall_get_flag(wall_data* w, int idx) {
     int flag = 0;
     switch(w->type) {

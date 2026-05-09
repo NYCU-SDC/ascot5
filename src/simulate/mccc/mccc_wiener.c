@@ -33,6 +33,7 @@ const int MCCC_EMPTY = -1;
  * @param w Wiener struct to be initialized
  * @param initime time when a Wiener process begins
  */
+DECLARE_TARGET_SIMD
 void mccc_wiener_initialize(mccc_wienarr* w, real initime){
 
     /* Initialize position instances indicating all slots are empty */
@@ -63,6 +64,7 @@ void mccc_wiener_initialize(mccc_wienarr* w, real initime){
  *
  * @return zero if generation succeeded
  */
+DECLARE_TARGET_SIMD
 a5err mccc_wiener_generate(mccc_wienarr* w, real t, int* windex, real* rand5){
     a5err err = 0;
     int eidx; /* Helper variables */
@@ -170,6 +172,7 @@ a5err mccc_wiener_generate(mccc_wienarr* w, real t, int* windex, real* rand5){
  *
  * @return zero if cleaning succeeded
  */
+DECLARE_TARGET_SIMD
 a5err mccc_wiener_clean(mccc_wienarr* w, real t){
     a5err err = 0;
     int idx, nextidx;

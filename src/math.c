@@ -41,6 +41,7 @@ real fmod(real x, real y) {
  * @param r   r coordinate of the gradient
  * @param phi phi coordinate of the gradient
  */
+DECLARE_TARGET_SIMD
 void math_jac_rpz2xyz(real* rpz, real* xyz, real r, real phi) {
     // Temporary variables
     real c = cos(phi);
@@ -100,6 +101,7 @@ void math_jac_rpz2xyz(real* rpz, real* xyz, real r, real phi) {
  * @param r   r coordinate of the gradient
  * @param phi phi coordinate of the gradient
  */
+GPU_DECLARE_TARGET_SIMD
 void math_jac_xyz2rpz(real* xyz, real* rpz, real r, real phi) {
     // Temporary variables
     real c = cos(phi);
@@ -156,6 +158,7 @@ void math_jac_xyz2rpz(real* xyz, real* rpz, real r, real phi) {
  * @param d3   input scalar dimension (rows in matB and matC)
  * @param matC output array representing a d1 x d3 matrix
  */
+GPU_DECLARE_TARGET_SIMD
 void math_matmul(real* matA, real* matB, int d1, int d2, int d3, real* matC) {
     real sum;
     for (int i = 0; i < d1; i=i+1) {
@@ -185,6 +188,7 @@ void math_matmul(real* matA, real* matB, int d1, int d2, int d3, real* matC) {
  *       independent variate is Y = v2 * sqrt(-2*log(s) / s)
  * @todo Try other random number generators such as those in Intel MKL
  */
+DECLARE_TARGET_SIMD
 real math_normal_rand(void) {
     real X;
     real v1, v2, s;
@@ -207,6 +211,7 @@ real math_normal_rand(void) {
  *
  * @return a^b
  */
+DECLARE_TARGET_SIMD
 int math_ipow(int a, int p) {
     int pow = 1;
     for(int i = 0; i < p; i++) {
@@ -321,6 +326,7 @@ void math_uniquecount(int* in, int* unique, int* count, int n) {
  * @param t2 xyz coordinates of the second point defining the plane
  * @param t3 xyz coordinates of the third point defining the plane
  */
+DECLARE_TARGET_SIMD
  int math_point_on_plane(real q[3], real t1[3], real t2[3], real t3[3]){
      real x  =  q[0], y  =  q[1], z  =  q[2];
      real x1 = t1[0], y1 = t1[1], z1 = t1[2];
@@ -357,6 +363,7 @@ void math_uniquecount(int* in, int* unique, int* count, int n) {
  * @param s evaluated s coordinate
  * @param t evaluated t coordinate
  */
+DECLARE_TARGET_SIMD
 void math_barycentric_coords_triangle(real AP[3], real AB[3], real AC[3],
                                       real n[3], real *s, real *t){
     real n0[3],area;
@@ -424,6 +431,7 @@ real* math_rsearch(const real key, const real* base, int num) {
  * @param zv array of z points for the polygon
  * @param n number of points in the polygon
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(rv, zv, n)
 int math_point_in_polygon(real r, real z, real* rv, real* zv, int n) {
     int hits = 0;
 

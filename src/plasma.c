@@ -87,6 +87,7 @@ void plasma_offload(plasma_data* data) {
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(pls_data)
 a5err plasma_eval_temp(real* temp, real rho, real r, real phi, real z, real t,
                        int species, plasma_data* pls_data) {
     a5err err = 0;
@@ -135,6 +136,7 @@ a5err plasma_eval_temp(real* temp, real rho, real r, real phi, real z, real t,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(pls_data)
 a5err plasma_eval_dens(real* dens, real rho, real r, real phi, real z, real t,
                        int species, plasma_data* pls_data) {
     a5err err = 0;
@@ -183,6 +185,7 @@ a5err plasma_eval_dens(real* dens, real rho, real r, real phi, real z, real t,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(pls_data)
 a5err plasma_eval_densandtemp(real* dens, real* temp, real rho,
                               real r, real phi, real z, real t,
                               plasma_data* pls_data) {
@@ -233,6 +236,7 @@ a5err plasma_eval_densandtemp(real* dens, real* temp, real rho,
  * @param t particle time coordinate [s]
  * @param pls_data pointer to plasma data
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(pls_data)
 a5err plasma_eval_flow(
     real* vflow, real rho, real r, real phi, real z, real t,
     plasma_data* pls_data) {
@@ -281,6 +285,7 @@ a5err plasma_eval_flow(
  *
  * @return The number of plasma species
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(pls_data)
 int plasma_get_n_species(plasma_data* pls_data) {
     int n = 0;
     switch(pls_data->type) {

@@ -87,6 +87,7 @@ void gctransform_setorder(int order) {
  * @param mu     pointer to guiding center magnetic moment [J/T]
  * @param zeta   pointer to guiding center gyroangle [rad]
  */
+DECLARE_TARGET_SIMD
 void gctransform_particle2guidingcenter(
     real mass, real charge, real* B_dB,
     real r, real phi, real z, real pr, real pphi, real pz,
@@ -326,6 +327,7 @@ void gctransform_particle2guidingcenter(
  * @param muprt    pointer to particle magnetic moment [J/T]
  * @param zetaprt  pointer to particle gyroangle [rad]
  */
+DECLARE_TARGET_SIMD
 void gctransform_guidingcenter2particle(
     real mass, real charge, real* B_dB,
     real R, real Phi, real Z, real ppar, real mu, real zeta,
@@ -551,6 +553,7 @@ void gctransform_guidingcenter2particle(
  * @param pphi   pointer to particle momentum phi-component [kg m/s]
  * @param pz     pointer to particle momentum z-component [kg m/s]
  */
+DECLARE_TARGET_SIMD
 void gctransform_pparmuzeta2prpphipz(real mass, real charge, real* B_dB,
                                      real phi, real ppar, real mu, real zeta,
                                      real* pr, real* pphi, real* pz) {

@@ -132,6 +132,7 @@ void mhd_stat_offload(mhd_stat_data* data) {
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(boozerdata, mhddata, includemode)
 a5err mhd_stat_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
                     int includemode, boozer_data* boozerdata,
                     mhd_stat_data* mhddata, B_field_data* Bdata) {
@@ -257,6 +258,7 @@ a5err mhd_stat_eval(real mhd_dmhd[10], real r, real phi, real z, real t,
  *
  * @return Non-zero a5err value if evaluation failed, zero otherwise
  */
+GPU_DECLARE_TARGET_SIMD_UNIFORM(boozerdata, mhddata, Bdata, pertonly, includemode)
 a5err mhd_stat_perturbations(real pert_field[7], real r, real phi, real z,
                              real t, int pertonly, int includemode,
                              boozer_data* boozerdata, mhd_stat_data* mhddata,

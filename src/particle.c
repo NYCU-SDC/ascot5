@@ -1167,7 +1167,6 @@ void particle_ml_to_state(particle_simd_ml* p_ml, int j, particle_state* p,
     else {
         p->err = err;
     }
-    if(!simerr && err) {err = err;}
     p->err = err;
 }
 
@@ -1186,8 +1185,6 @@ int particle_fo_to_gc(particle_simd_fo* p_fo, int j, particle_simd_gc* p_gc,
                       B_field_data* Bdata) {
     a5err err = p_fo->err[j];
     real axisrz[2];
-    int simerr = 0; /* Error has already occurred */
-    if(err) {simerr = 1;}
     p_gc->id[j]      = p_fo->id[j];
     p_gc->index[j]   = p_fo->index[j];
 
@@ -1281,7 +1278,6 @@ int particle_fo_to_gc(particle_simd_fo* p_fo, int j, particle_simd_gc* p_gc,
         p_gc->B_z_dphi[j]   = B_dB[10];
         p_gc->B_z_dz[j]     = B_dB[11];
     }
-    if(!simerr) {err = err;}
     p_gc->err[j] = err;
     if(p_gc->err[j]) {
         p_gc->running[j] = 0;
@@ -1291,151 +1287,8 @@ int particle_fo_to_gc(particle_simd_fo* p_fo, int j, particle_simd_gc* p_gc,
     return err > 0;
 }
 
-/**
- * @brief Copy FO struct
- *
- * @param p1 SIMD structure for input
- * @param i  index for the copied input
- * @param p2 SIMD structure for output
- * @param j  index for the output slot
- */
-void particle_copy_fo(particle_simd_fo* p1, int i, particle_simd_fo* p2, int j) {
-        p2->r[j]          = p1->r[i];
-        p2->phi[j]        = p1->phi[i];
-        p2->z[j]          = p1->z[i];
-        p2->p_r[j]        = p1->p_r[i];
-        p2->p_phi[j]      = p1->p_phi[i];
-        p2->p_z[j]        = p1->p_z[i];
-
-        p2->time[j]       = p1->time[i];
-        p2->mileage[j]    = p1->mileage[i];
-        p2->cputime[j]    = p1->cputime[i];
-        p2->rho[j]        = p1->rho[i];
-        p2->weight[j]     = p1->weight[i];
-        p2->cputime[j]    = p1->cputime[i];
-        p2->rho[j]        = p1->rho[i];
-        p2->theta[j]      = p1->theta[i];
-
-        p2->mass[j]       = p1->mass[i];
-        p2->charge[j]     = p1->charge[i];
-        p2->znum[j]       = p1->znum[i];
-        p2->anum[j]       = p1->anum[i];
-
-        p2->id[j]         = p1->id[i];
-        p2->bounces[j]    = p1->bounces[i];
-        p2->running[j]    = p1->running[i];
-        p2->endcond[j]    = p1->endcond[i];
-        p2->walltile[j]   = p1->walltile[i];
-
-        p2->B_r[j]        = p1->B_r[i];
-        p2->B_phi[j]      = p1->B_phi[i];
-        p2->B_z[j]        = p1->B_z[i];
-
-        p2->B_r_dr[j]     = p1->B_r_dr[i];
-        p2->B_r_dphi[j]   = p1->B_r_dphi[i];
-        p2->B_r_dz[j]     = p1->B_r_dz[i];
-
-        p2->B_phi_dr[j]   = p1->B_phi_dr[i];
-        p2->B_phi_dphi[j] = p1->B_phi_dphi[i];
-        p2->B_phi_dz[j]   = p1->B_phi_dz[i];
-
-        p2->B_z_dr[j]     = p1->B_z_dr[i];
-        p2->B_z_dphi[j]   = p1->B_z_dphi[i];
-        p2->B_z_dz[j]     = p1->B_z_dz[i];
-}
-
-/**
- * @brief Copy GC struct
- *
- * @param p1 SIMD structure for input
- * @param i  index for the copied input
- * @param p2 SIMD structure for output
- * @param j  index for the output slot
- */
-void particle_copy_gc(particle_simd_gc* p1, int i, particle_simd_gc* p2, int j) {
-    p2->r[j]          = p1->r[i];
-    p2->phi[j]        = p1->phi[i];
-    p2->z[j]          = p1->z[i];
-    p2->ppar[j]       = p1->ppar[i];
-    p2->mu[j]         = p1->mu[i];
-    p2->zeta[j]       = p1->zeta[i];
-
-    p2->time[j]       = p1->time[i];
-    p2->mileage[j]    = p1->mileage[i];
-    p2->weight[j]     = p1->weight[i];
-    p2->cputime[j]    = p1->cputime[i];
-    p2->rho[j]        = p1->rho[i];
-    p2->theta[j]      = p1->theta[i];
-
-    p2->mass[j]       = p1->mass[i];
-    p2->charge[j]     = p1->charge[i];
-
-    p2->id[j]         = p1->id[i];
-    p2->bounces[j]    = p1->bounces[i];
-    p2->running[j]    = p1->running[i];
-    p2->endcond[j]    = p1->endcond[i];
-    p2->walltile[j]   = p1->walltile[i];
-
-    p2->B_r[j]        = p1->B_r[i];
-    p2->B_phi[j]      = p1->B_phi[i];
-    p2->B_z[j]        = p1->B_z[i];
-
-    p2->B_r_dr[j]     = p1->B_r_dr[i];
-    p2->B_r_dphi[j]   = p1->B_r_dphi[i];
-    p2->B_r_dz[j]     = p1->B_r_dz[i];
-
-    p2->B_phi_dr[j]   = p1->B_phi_dr[i];
-    p2->B_phi_dphi[j] = p1->B_phi_dphi[i];
-    p2->B_phi_dz[j]   = p1->B_phi_dz[i];
-
-    p2->B_z_dr[j]     = p1->B_z_dr[i];
-    p2->B_z_dphi[j]   = p1->B_z_dphi[i];
-    p2->B_z_dz[j]     = p1->B_z_dz[i];
-}
-
-/**
- * @brief Copy ML struct
- *
- * @param p1 SIMD structure for input
- * @param i  index for the copied input
- * @param p2 SIMD structure for output
- * @param j  index for the output slot
- */
-void particle_copy_ml(particle_simd_ml* p1, int i, particle_simd_ml* p2,
-                      int j) {
-    p2->r[j]          = p1->r[i];
-    p2->phi[j]        = p1->phi[i];
-    p2->z[j]          = p1->z[i];
-    p2->pitch[j]      = p1->pitch[i];
-
-    p2->time[j]       = p1->time[i];
-    p2->mileage[j]    = p1->mileage[i];
-    p2->cputime[j]    = p1->cputime[i];
-    p2->rho[j]        = p1->rho[i];
-    p2->weight[j]     = p1->weight[i];
-    p2->theta[j]      = p1->theta[i];
-
-    p2->id[j]         = p1->id[i];
-    p2->running[j]    = p1->running[i];
-    p2->endcond[j]    = p1->endcond[i];
-    p2->walltile[j]   = p1->walltile[i];
-
-    p2->B_r[j]        = p1->B_r[i];
-    p2->B_phi[j]      = p1->B_phi[i];
-    p2->B_z[j]        = p1->B_z[i];
-
-    p2->B_r_dr[j]     = p1->B_r_dr[i];
-    p2->B_r_dphi[j]   = p1->B_r_dphi[i];
-    p2->B_r_dz[j]     = p1->B_r_dz[i];
-
-    p2->B_phi_dr[j]   = p1->B_phi_dr[i];
-    p2->B_phi_dphi[j] = p1->B_phi_dphi[i];
-    p2->B_phi_dz[j]   = p1->B_phi_dz[i];
-
-    p2->B_z_dr[j]     = p1->B_z_dr[i];
-    p2->B_z_dphi[j]   = p1->B_z_dphi[i];
-    p2->B_z_dz[j]     = p1->B_z_dz[i];
-}
+/* particle_copy_fo, particle_copy_gc, particle_copy_ml are static inline
+   in particle.h */
 
 /**
  * @brief Convert an input particle marker to particle state
